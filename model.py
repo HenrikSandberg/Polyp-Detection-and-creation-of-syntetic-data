@@ -6,7 +6,7 @@ import cv2
 import random
 
 # Disables warning, doesn't enable AVX/FMA
-import os
+import datetime, os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 #The dataset used in this assignment is a benchmark dataset to use 
@@ -42,6 +42,7 @@ CATEGORIES = [
     'ulcerative-colitis'
 ]
 
+#FUNCTION DEFENITIONS
 def create_training_data(): 
     training_data = []   
     for category in CATEGORIES:
@@ -60,6 +61,30 @@ def create_training_data():
     random.shuffle(training_data)
     return training_data
 
+def build_model():
+    model = Sequential([
+        Conv2D(64, (3, 3), activation='relu', input_shape=(img_size, img_size, 3)),
+        MaxPool2D((2, 2)),
+        Conv2D(128, (3, 3), activation='relu'),
+        MaxPool2D((2, 2)),
+        Conv2D(128, (3, 3), activation='relu'),
+        Flatten(),
+        Dense(128, activation='relu'),
+        Dense(8, activation='softmax')
+    ])
+
+    base_model = keras.applications.ResNet50(
+        include_top=False,
+        weights="imagenet",
+        input_shape=(img_size, img_size, 3)
+    )
+
+    golbal_avg_pool = keras.layers.GlobalAveragePooling2D()(base_model.output)
+    output = Dense(8, activation="softmax")(golbal_avg_pool)
+    model = Model(inputs=base_model.input, outputs=output)
+    model.summary()
+    return model
+
 X = []
 y = []
 
@@ -77,6 +102,7 @@ for feature, label in training_data:
     y.append(label)
 
 X = np.array(X).reshape(-1, img_size, img_size, 3)
+X = X/255
 
 ''' pickle_out = open('X.pickle', 'wb')
 pickle.dump(X, pickle_out)
@@ -86,27 +112,27 @@ pickle_out = open('y.pickle', 'wb')
 pickle.dump(y, pickle_out)
 pickle_out.close() '''
 
-model = Sequential([
-    Conv2D(img_size, (3, 3), input_shape = (img_size, img_size, 3), activation='relu'),
-    MaxPool2D(pool_size = (2, 2)),
-    Conv2D(img_size/2, (3, 3), activation='relu'),
-    MaxPool2D(pool_size = (2, 2)),
-    Flatten(),
-    Dense(units = 64, activation = 'relu'),
-    Dense(units = 8, activation = 'sigmoid')
-])
+model = build_model()
 
 model.compile(
-    optimizer = 'adam', 
-    loss = 'sparse_categorical_crossentropy', 
-    metrics = ['categorical_accuracy','accuracy'])
+    optimizer='adam',
+    loss='sparse_categorical_crossentropy',
+    metrics=[ 'accuracy' ]
+)
 
-chekpoint_path = "first_training/cp.ckpt"
-checkpoint_dir = os.path.dirname(chekpoint_path)
-cp_callback = keras.callbacks.ModelCheckpoint(filepath= chekpoint_path, save_weights_only=True, verbose=1)
+#Add a callback so that we can use tensorboard
+logdir = os.path.join("logs_l8", datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+tensorboard_callback = tf.keras.callbacks.TensorBoard(logdir, histogram_freq=1)
 
-model.fit(X, y, 
+history = model.fit(X,y,
     batch_size=32,
-    epochs=25,
+    epochs=10, 
     validation_split=0.15,
-    callbacks=[cp_callback])
+)
+
+''' callbacks=[
+    tensorboard_callback,
+    keras.callbacks.Model.Checkpoint('model.h5', monitor='val_loss')
+]
+model = keras.models.load_data('model.h5')
+ '''
