@@ -25,14 +25,12 @@ from keras.preprocessing import image
 import pickle
 
 #GLOBALE VALUES
-img_size = 500
-img_width = 576
-img_height = 720
+img_size = 256
 
 data_dir = 'data/'
 
-X = []
-y = []
+train_data = []
+train_lable = []
 
 CATEGORIES = [
     'dyed-lifted-polyps', 
@@ -64,6 +62,36 @@ def create_training_data():
     random.shuffle(training_data)
     return training_data
 
+def define_data():
+    (X, y) = ([], [])
+
+    try:
+        pickle_in = open("X.pickle","rb")
+        X = pickle.load(pickle_in)
+
+        pickle_in = open("y.pickle","rb")
+        y = pickle.load(pickle_in)
+    except Exception as e:
+        print('Error accured: '+ str(e))
+
+        training_data = create_training_data()
+
+        for feature, label in training_data:
+            X.append(feature)
+            y.append(label)
+
+        X = np.array(X).reshape(-1, img_size, img_size, 1)
+        X = X/255.0
+        
+        pickle_out = open("X.pickle","wb")
+        pickle.dump(X, pickle_out)
+        pickle_out.close()
+
+        pickle_out = open("y.pickle","wb")
+        pickle.dump(y, pickle_out)
+        pickle_out.close()
+    return (X, y)
+
 def build_model():
     model = Sequential([
         Conv2D(256, (3, 3), activation='relu', input_shape=(img_size, img_size, 1)),
@@ -74,29 +102,42 @@ def build_model():
         MaxPool2D((2, 2)),
         Flatten(),
         Dense(units=128, activation='relu'),
-        Dense(units=8, activation="sigmoid")
+        Dense(units=8, activation="softmax")
     ])
     return model
 
-training_data = create_training_data()
-
-for feature, label in training_data:
-    X.append(feature)
-    y.append(label)
-
-X = np.array(X).reshape(-1, img_size, img_size, 1)
-
+(train_data, train_lable) = define_data()
 model = build_model()
+
+#Add a callback so that we can use tensorboard
+logdir = os.path.join("logs_l8", datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+tensorboard_callback = tf.keras.callbacks.TensorBoard(logdir, histogram_freq=1)
 
 model.compile(
     loss='sparse_categorical_crossentropy',
     optimizer='adam',
     metrics=['accuracy'])
 
-history = model.fit(X, y, 
+history = model.fit(
+    train_data, 
+    train_lable, 
     batch_size=32, 
     epochs=10, 
-    validation_split=0.05) 
+    validation_split=0.05,
+    callbacks=[
+        tensorboard_callback,
+        keras.callbacks.ModelCheckpoint(
+        filepath='mymodel_{epoch}.h5',
+        # Path where to save the model
+        # The two parameters below mean that we will overwrite
+        # the current checkpoint if and only if
+        # the `val_loss` score has improved.
+        save_best_only=True,
+        monitor='val_loss',
+        verbose=1)
+    ]) 
+
+model = keras.models.load_data('model.h5')
 
 plt.plot(history.history['accuracy'], label='accuracy')
 plt.plot(history.history['val_accuracy'], label = 'val_accuracy')
