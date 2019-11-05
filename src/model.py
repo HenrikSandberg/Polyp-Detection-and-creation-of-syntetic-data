@@ -26,6 +26,7 @@ import pickle
 
 #GLOBALE VALUES
 img_size = 128
+user_color_images = True
 
 CATEGORIES = [
     'dyed-lifted-polyps', 
@@ -47,7 +48,7 @@ def create_training_data():
 
         for img in os.listdir(path):
             try:
-                img_array = cv2.imread(os.path.join(path,img)) #, cv2.IMREAD_GRAYSCALE
+                img_array = cv2.imread(os.path.join(path,img)) if user_color_images else cv2.imread(os.path.join(path,img), cv2.IMREAD_GRAYSCALE) 
                 new_img_array = cv2.resize(img_array, (img_size, img_size))
                 training_data.append([new_img_array, class_num])
                 # plt.imshow(img_array, cmap='gray')
@@ -84,7 +85,7 @@ def defining_features_and_labels():
             X.append(feature)
             y.append(label)
 
-        X = np.array(X).reshape(-1, img_size, img_size, 3)        
+        X = np.array(X).reshape(-1, img_size, img_size, 3 if user_color_images else 1)        
         X = X/255.0
 
         create_file('y', y)
@@ -94,11 +95,11 @@ def defining_features_and_labels():
 
 def build_model():
     return Sequential([
-        Conv2D(256, (3, 3), activation='relu', input_shape=(img_size, img_size, 3)),
+        Conv2D(64, (3, 3), activation='relu', input_shape=(img_size, img_size, 3 if user_color_images else 1)),
         MaxPool2D((2, 2)),
         Conv2D(128, (3, 3), activation='relu'),
         MaxPool2D((2, 2)),
-        Conv2D(64, (3, 3), activation='relu'),
+        Conv2D(256, (3, 3), activation='relu'),
         MaxPool2D((2, 2)),
         Flatten(),
         Dense(units=128, activation='relu'),
@@ -108,10 +109,19 @@ def build_model():
 (train_features, train_lables) = defining_features_and_labels()
 model = build_model()
 
-# os.mkdir("training/")
-checkpoint_path = "training/model.h5"
+checkpoint_path = "trained/model.h5"
 checkpoint_dir = os.path.dirname(checkpoint_path)
-cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path, save_weights_only=True, verbose=1, monitor='val_loss')
+
+cp_callback = tf.keras.callbacks.ModelCheckpoint(
+    filepath=checkpoint_path, 
+    save_weights_only=True, 
+    verbose=1, 
+    monitor='val_loss')
+
+try:
+    model.load_weights(checkpoint_path)
+except Exception as e:
+    print('Exception:' + str(e))
  
 model.compile(
     loss='sparse_categorical_crossentropy',
@@ -122,11 +132,9 @@ history = model.fit(
     train_features, 
     train_lables, 
     batch_size=32, 
-    epochs=5, 
+    epochs=10, 
     validation_split=0.05,
     callbacks=[ cp_callback ]) 
-
-model.load_weights(checkpoint_path)
 
 plt.plot(history.history['accuracy'], label='accuracy')
 plt.plot(history.history['val_accuracy'], label = 'val_accuracy')
