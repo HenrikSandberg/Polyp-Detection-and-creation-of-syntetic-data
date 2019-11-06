@@ -124,3 +124,5 @@ dmypy.json
 *.jpg
 *.pickle
 tempCodeRunnerFile.py
+*.h5
+*.h5

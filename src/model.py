@@ -1,4 +1,4 @@
-from __future__ import absolute_import, division, print_function, unicode_literals
+#from __future__ import absolute_import, division, print_function, unicode_literals
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -25,8 +25,8 @@ from keras.preprocessing import image
 import pickle
 
 #GLOBALE VALUES
-img_size = 128
-user_color_images = True
+img_size = 256
+user_color_images = False
 
 CATEGORIES = [
     'dyed-lifted-polyps', 
@@ -49,11 +49,8 @@ def create_training_data():
         for img in os.listdir(path):
             try:
                 img_array = cv2.imread(os.path.join(path,img)) if user_color_images else cv2.imread(os.path.join(path,img), cv2.IMREAD_GRAYSCALE) 
-                new_img_array = cv2.resize(img_array, (img_size, img_size))
-                training_data.append([new_img_array, class_num])
-                # plt.imshow(img_array, cmap='gray')
-                # plt.show()
-                # break
+                img_array = cv2.resize(img_array, (img_size, img_size))
+                training_data.append([img_array, class_num])
             except Exception:
                 print('Building training data for ' + str(category))
             
@@ -106,6 +103,15 @@ def build_model():
         Dense(units=8, activation="softmax")
     ])
 
+def plot_history(history):
+    plt.plot(history.history['accuracy'], label='accuracy')
+    plt.plot(history.history['val_accuracy'], label = 'val_accuracy')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy')
+    plt.ylim([0.5, 1])
+    plt.legend(loc='lower right')
+    plt.show()
+
 (train_features, train_lables) = defining_features_and_labels()
 model = build_model()
 
@@ -116,7 +122,7 @@ cp_callback = tf.keras.callbacks.ModelCheckpoint(
     filepath=checkpoint_path, 
     save_weights_only=True, 
     verbose=1, 
-    monitor='val_loss')
+    monitor=['val_loss', 'val_accuracy'])
 
 try:
     model.load_weights(checkpoint_path)
@@ -136,10 +142,4 @@ history = model.fit(
     validation_split=0.05,
     callbacks=[ cp_callback ]) 
 
-plt.plot(history.history['accuracy'], label='accuracy')
-plt.plot(history.history['val_accuracy'], label = 'val_accuracy')
-plt.xlabel('Epoch')
-plt.ylabel('Accuracy')
-plt.ylim([0.5, 1])
-plt.legend(loc='lower right')
-plt.show()
+plot_history(history)
