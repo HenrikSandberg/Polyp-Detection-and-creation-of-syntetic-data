@@ -1,22 +1,33 @@
-from keras.layers import Input, Reshape, Dropout, Dense, Flatten, BatchNormalization, Activation, ZeroPadding2D
-from keras.layers.advanced_activations import LeakyReLU
-from keras.layers.convolutional import UpSampling2D, Conv2D
-from keras.models import Sequential, Model, load_model
-from keras.optimizers import Adam
-import numpy as np
-from PIL import Image
-from tqdm import tqdm
-import os
-import cv2
-import random
+from __future__ import absolute_import, division, print_function, unicode_literals
 import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import BatchNormalization, LeakyReLU, Reshape, Dense, Dropout, Conv2D, Conv2DTranspose, Flatten
 
-GENERATE_RES = 2
-DATA_FOLDER = './tf_data/VGAN/MNIST'
-img_size = 128 * GENERATE_RES
-NOISE_SIZE = 500
-BATCH_SIZE = 100
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
+# import glob
+# import imageio
+import matplotlib.pyplot as plt
+import numpy as np
+# import PIL
+import time
+import cv2
+
+from IPython import display
+
+img_size = 128
+channels = 1
+
+EPOCHS = 5000
+noise_dim = 100
+num_examples_to_generate = 16
+
+seed = tf.random.normal([num_examples_to_generate, noise_dim])
+cross_entropy = tf.keras.losses.BinaryCrossentropy(from_logits=True)
+
+BUFFER_SIZE = 60000
+BATCH_SIZE = 256
 CATEGORIES = [
     'dyed-lifted-polyps', 
     'dyed-resection-margins', 
@@ -28,160 +39,138 @@ CATEGORIES = [
     'ulcerative-colitis'
 ]
 
-def create_training_data(): 
+def create_training_data(selected=0): 
     training_data = []   
-    category =  CATEGORIES[0]
+    category = CATEGORIES[selected]
     path = os.path.join('data/', category)
 
     for img in os.listdir(path):
         try:
-            img_array = cv2.imread(os.path.join(path,img))
+            img_array = cv2.imread(os.path.join(path,img), cv2.IMREAD_GRAYSCALE)
             new_img_array = cv2.resize(img_array, (img_size, img_size))
-            training_data.append([new_img_array])
+            training_data.append([new_img_array, selected])
         except Exception:
             print('Building training data for ' + str(category))
-            
-    random.shuffle(training_data)
-    X = np.array(training_data).reshape(-1, img_size, img_size, 3)        
-    X = X/255.0
-    return X
+    (X, y) = ([], [])
 
-def build_generator(seed_size, channels):
-    model = Sequential([
-        Dense(4*4*256,activation="relu",input_dim=seed_size),
-        Reshape((4,4,256)),
-        UpSampling2D(),
-        Conv2D(256,kernel_size=3,padding="same"),
-        BatchNormalization(momentum=0.8),
-        Activation("relu"),
-        UpSampling2D(),
-        Conv2D(256,kernel_size=3,padding="same"),
-        BatchNormalization(momentum=0.8),
-        Activation("relu")
+    for feature, label in training_data:
+        X.append(feature)
+        y.append(label)
+
+    X = np.array(X).reshape(-1, img_size, img_size, channels)
+    return (X, y)
+
+def make_generator_model():
+    size = int(img_size/4)
+    return Sequential([
+        Dense(size*size*256, use_bias=False, input_shape=(128,)),
+        BatchNormalization(),
+        LeakyReLU(),
+        Reshape((size, size, 256)),
+        Conv2DTranspose(128, (5, 5), strides=(1, 1), padding='same', use_bias=False),
+        BatchNormalization(),
+        LeakyReLU(),
+        Conv2DTranspose(64, (5, 5), strides=(2, 2), padding='same', use_bias=False),
+        BatchNormalization(),
+        LeakyReLU(),
+        Conv2DTranspose(1, (5, 5), strides=(2, 2), padding='same', use_bias=False, activation='tanh')
     ])
-   
-    # Output resolution, additional upsampling
-    for _ in range(GENERATE_RES):
-      model.add(UpSampling2D())
-      model.add(Conv2D(128,kernel_size=3,padding="same"))
-      model.add(BatchNormalization(momentum=0.8))
-      model.add(Activation("relu"))
 
-    # Final CNN layer
-    model.add(Conv2D(channels,kernel_size=3,padding="same"))
-    model.add(Activation("tanh"))
-
-    input = Input(shape=(seed_size,))
-    generated_image = model(input)
-
-    return Model(input, generated_image)
-
-def build_discriminator(image_shape):
-    model = Sequential([
-        Conv2D(32, kernel_size=3, strides=2, input_shape=image_shape, padding="same"),
-        LeakyReLU(alpha=0.2),
-        Dropout(0.25),
-        Conv2D(64, kernel_size=3, strides=2, padding="same"),
-        ZeroPadding2D(padding=((0,1),(0,1))),
-        BatchNormalization(momentum=0.8),
-        LeakyReLU(alpha=0.2),
-        Dropout(0.25),
-        Conv2D(128, kernel_size=3, strides=2, padding="same"),
-        BatchNormalization(momentum=0.8),
-        LeakyReLU(alpha=0.2),
-        Dropout(0.25),
-        Conv2D(256, kernel_size=3, strides=1, padding="same"),
-        BatchNormalization(momentum=0.8),
-        LeakyReLU(alpha=0.2),
-        Dropout(0.25),
-        Conv2D(512, kernel_size=3, strides=1, padding="same"),
-        BatchNormalization(momentum=0.8),
-        LeakyReLU(alpha=0.2),
-        Dropout(0.25),
+def make_discriminator_model():
+    return Sequential([
+        Conv2D(64, (5, 5), strides=(2, 2), padding='same', input_shape=[img_size, img_size, channels]),
+        LeakyReLU(),
+        Dropout(0.3),
+        Conv2D(128, (5, 5), strides=(2, 2), padding='same'),
+        LeakyReLU(),
+        Dropout(0.3),
         Flatten(),
-        Dense(1, activation='sigmoid')
+        Dense(1)
     ])
 
-    input_image = Input(shape=image_shape)
-    validity = model(input_image)
-    return Model(input_image, validity)
+def discriminator_loss(real_output, fake_output):
+    real_loss = cross_entropy(tf.ones_like(real_output), real_output)
+    fake_loss = cross_entropy(tf.zeros_like(fake_output), fake_output)
+    total_loss = real_loss + fake_loss
+    return total_loss
 
-def save_images(cnt,noise):
-      image_array = np.full(( 
-      PREVIEW_MARGIN + (PREVIEW_ROWS * (GENERATE_SQUARE+PREVIEW_MARGIN)), 
-      PREVIEW_MARGIN + (PREVIEW_COLS * (GENERATE_SQUARE+PREVIEW_MARGIN)), 3), 
-      255, dtype=np.uint8)
-  
-  generated_images = generator.predict(noise)
+def generator_loss(fake_output):
+    return cross_entropy(tf.ones_like(fake_output), fake_output)
 
-  generated_images = 0.5 * generated_images + 0.5
+@tf.function
+def train_step(images):
+    noise = tf.random.normal([BATCH_SIZE, noise_dim])
 
-  image_count = 0
-  for row in range(PREVIEW_ROWS):
-      for col in range(PREVIEW_COLS):
-        r = row * (GENERATE_SQUARE+16) + PREVIEW_MARGIN
-        c = col * (GENERATE_SQUARE+16) + PREVIEW_MARGIN
-        image_array[r:r+GENERATE_SQUARE,c:c+GENERATE_SQUARE] = generated_images[image_count] * 255
-        image_count += 1
+    with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
+      generated_images = generator(noise, training=True)
 
-          
-  output_path = os.path.join(DATA_PATH,'output')
-  if not os.path.exists(output_path):
-    os.makedirs(output_path)
-  
-  filename = os.path.join(output_path,f"train-{cnt}.png")
-  im = Image.fromarray(image_array)
-  im.save(filename)
+      real_output = discriminator(images, training=True)
+      fake_output = discriminator(generated_images, training=True)
 
-  image_shape = (GENERATE_SQUARE,GENERATE_SQUARE,IMAGE_CHANNELS)
+      gen_loss = generator_loss(fake_output)
+      disc_loss = discriminator_loss(real_output, fake_output)
 
+    gradients_of_generator = gen_tape.gradient(gen_loss, generator.trainable_variables)
+    gradients_of_discriminator = disc_tape.gradient(disc_loss, discriminator.trainable_variables)
 
-training_data = create_training_data()
+    generator_optimizer.apply_gradients(zip(gradients_of_generator, generator.trainable_variables))
+    discriminator_optimizer.apply_gradients(zip(gradients_of_discriminator, discriminator.trainable_variables))
 
-optimizer = Adam(1.5e-4,0.5) # learning rate and momentum adjusted from paper
+def train(dataset, epochs):
+    for epoch in range(epochs):
+        start = time.time()
 
-discriminator = build_discriminator(image_shape)
-discriminator.compile(loss="binary_crossentropy",optimizer=optimizer,metrics=["accuracy"])
-generator = build_generator(SEED_SIZE,IMAGE_CHANNELS)
+        for image_batch in dataset:
+            train_step(image_batch)
 
-random_input = Input(shape=(SEED_SIZE,))
+        display.clear_output(wait=True)
+        generate_and_save_images(generator, epoch + 1, seed)
 
-generated_image = generator(random_input)
+        if (epoch + 1) % 15 == 0:
+            checkpoint.save(file_prefix = checkpoint_prefix)
 
-discriminator.trainable = False
-
-validity = discriminator(generated_image)
-
-combined = Model(random_input,validity)
-combined.compile(loss="binary_crossentropy",optimizer=optimizer,metrics=["accuracy"])
-
-y_real = np.ones((BATCH_SIZE,1))
-y_fake = np.zeros((BATCH_SIZE,1))
-
-fixed_seed = np.random.normal(0, 1, (PREVIEW_ROWS * PREVIEW_COLS, SEED_SIZE))
-
-cnt = 1
-for epoch in range(EPOCHS):
-    idx = np.random.randint(0,training_data.shape[0],BATCH_SIZE)
-    x_real = training_data[idx]
-
-    # Generate some images
-    seed = np.random.normal(0,1,(BATCH_SIZE,SEED_SIZE))
-    x_fake = generator.predict(seed)
-
-    # Train discriminator on real and fake
-    discriminator_metric_real = discriminator.train_on_batch(x_real,y_real)
-    discriminator_metric_generated = discriminator.train_on_batch(x_fake,y_fake)
-    discriminator_metric = 0.5 * np.add(discriminator_metric_real,discriminator_metric_generated)
-    
-    # Train generator on Calculate losses
-    generator_metric = combined.train_on_batch(seed,y_real)
-    
-    # Time for an update?
-    if epoch % SAVE_FREQ == 0:
-        save_images(cnt, fixed_seed)
-        cnt += 1
-        print(f"Epoch {epoch}, Discriminator accuarcy: {discriminator_metric[1]}, Generator accuracy: {generator_metric[1]}")
+        print ('Time for epoch {} is {} sec'.format(epoch + 1, int(time.time()-start)))
         
-generator.save(os.path.join(DATA_PATH,"face_generator.h5"))
+    display.clear_output(wait=True)
+    generate_and_save_images(generator,epochs,seed)
 
+
+def generate_and_save_images(model, epoch, test_input):
+    predictions = model(test_input, training=False)
+
+    #fig = plt.figure(figsize=(4,4))
+    
+    # for i in range(predictions.shape[0]):
+    #     plt.subplot(4, 4, i+1)
+    #     plt.imshow(predictions[i, :, :, 0] * 127.5 + 127.5, cmap='gray')
+    #     plt.axis('off')
+
+    plt.imshow(predictions[0, :, :, 0] * img_size + img_size, cmap='gray')
+    plt.axis('off')
+    plt.savefig('syntetic/image_at_epoch_{:04d}.png'.format(epoch))
+    plt.close()
+    # plt.show()
+
+(train_images, train_labels) = create_training_data()
+train_images = (train_images - 127.5) / 127.5 
+train_dataset = tf.data.Dataset.from_tensor_slices(train_images).shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
+
+generator = make_generator_model()
+discriminator = make_discriminator_model()
+generator_optimizer = tf.keras.optimizers.Adam(1e-4)
+discriminator_optimizer = tf.keras.optimizers.Adam(1e-4)
+
+checkpoint_dir = './training_checkpoints_GAN'
+checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
+checkpoint = tf.train.Checkpoint(
+    generator_optimizer=generator_optimizer, 
+    discriminator_optimizer=discriminator_optimizer, 
+    generator=generator, 
+    discriminator=discriminator)
+
+try:
+    checkpoint.restore(tf.train.latest_checkpoint(checkpoint_dir))
+except Exception as e:
+    print(e)
+
+train(train_dataset, EPOCHS)
