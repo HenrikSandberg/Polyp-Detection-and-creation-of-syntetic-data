@@ -1,9 +1,11 @@
-#from __future__ import absolute_import, division, print_function, unicode_literals
-
 import matplotlib.pyplot as plt
-import pandas as pd
+import numpy as np
+import time
+import pickle
 import cv2
 import random
+from sklearn import metrics
+from sklearn import svm
 
 # Disables warning, doesn't enable AVX/FMA
 import datetime, os
@@ -12,23 +14,17 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 #The dataset used in this assignment is a benchmark dataset to use 
 import tensorflow as tf
 from tensorflow import keras
-
-#Import from keras
+from keras.callbacks import TensorBoard
 from keras.models import Sequential
 from keras.layers import Conv2D, GlobalAvgPool2D, MaxPool2D, Flatten, Dense
 
-#Making new prediction
-import numpy as np
-from keras.preprocessing import image
-
-#Store data
-import pickle
-
 #GLOBALE VALUES
-IMG_SIZE = 128
-USE_COLOR = False
+IMG_SIZE = 64
+USE_COLOR = True
 CHANNELS = 3 if USE_COLOR else 1
 COLOR_STATE = "color" if USE_COLOR else "gray"
+
+NAME = "model_{}_{}".format(IMG_SIZE, COLOR_STATE)
 
 CATEGORIES = [
     'dyed-lifted-polyps', 
@@ -42,10 +38,9 @@ CATEGORIES = [
 ]
 
 ''' 
-    Genaerate trainingdata by moving in to the different directories, using the name on the directories as labels for the data. 
-    The data from the images are together withe the labels added into an array. 
-    At the end, the data is suffeld in order to make sure that alle the calssifications are moved around. 
-'''
+Genaerate trainingdata by moving in to the different directories, using the name on the directories as labels for the data. 
+The data from the images are together withe the labels added into an array. 
+At the end, the data is suffeld in order to make sure that alle the calssifications are moved around. '''
 def create_training_data(): 
     training_data = []   
     for category in CATEGORIES:
@@ -93,14 +88,24 @@ def defining_features_and_labels():
         for feature, label in training_data:
             X.append(feature)
             y.append(label)
-
         X = np.array(X).reshape(-1, IMG_SIZE, IMG_SIZE, CHANNELS)        
         X = X/255.0
 
-        create_file('y', y)
-        create_file('X', X)
-        
-    return (X, y)
+
+    #Splits and sets aside data for validation of the models performasce
+    trainging_size = 0.95
+    X_split = int(len(X)*trainging_size)
+    X1 = X[0: X_split]
+    X2 = X[X_split: ]
+
+    y_split = int(len(y)*trainging_size)
+    y1 = y[0: y_split]
+    y2 = y[y_split: ]
+    
+    create_file('y', y)
+    create_file('X', X)
+
+    return (X1, y1), (X2, y2)
 
 ''' 
     Builds a CNN model with two hidden layers. The model uses a softmax in order to determen which 
@@ -115,9 +120,9 @@ def build_model():
         Conv2D(256, (3, 3), activation='relu'),
         MaxPool2D((2, 2)),
         Flatten(),
-        Dense(units=128, activation='relu'),
         Dense(units=8, activation="softmax")
     ])
+#Dense(units=128, activation='relu'),
 
 # Plots the distribution between accuracy and validation accuracy
 def plot_history(history):
@@ -129,17 +134,20 @@ def plot_history(history):
     plt.legend(loc='lower right')
     plt.show()
 
-(train_features, train_lables) = defining_features_and_labels()
+(train_features, train_lables), (x_test, y_test) = defining_features_and_labels()
 model = build_model()
 
-checkpoint_path = "training_checkpoints_CNN/model.h5"
+log_dir="logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+tensorboard = TensorBoard(log_dir=log_dir, histogram_freq=1)
+
+checkpoint_path = "training_checkpoints_CNN/"+NAME+".h5"
 checkpoint_dir = os.path.dirname(checkpoint_path)
 
 cp_callback = tf.keras.callbacks.ModelCheckpoint(
     filepath=checkpoint_path, 
     save_weights_only=True, 
     verbose=1, 
-    monitor='val_accuracy')
+    monitor='val_loss')
 
 try:
     model.load_weights(checkpoint_path)
@@ -149,14 +157,24 @@ except Exception as e:
 model.compile(
     loss='sparse_categorical_crossentropy',
     optimizer='adam',
-    metrics=['accuracy'])
-
+    metrics=['sparse_categorical_accuracy', 'accuracy'])
+'''
 history = model.fit(
     train_features, 
     train_lables, 
     batch_size=32, 
-    epochs=10, 
-    validation_split=0.05,
-    callbacks=[ cp_callback ]) 
+    epochs=15, 
+    validation_split=0.15,
+    callbacks=[ cp_callback, tensorboard ]) 
+'''
 
-plot_history(history)
+
+y_pred = model.predict(x_test)
+y_pred = np.argmax(y_pred, axis = 1)
+
+for num in range(len(y_pred)):
+    print('[PRED][ACTUAL] = [' + CATEGORIES[y_pred[num]]+'] ['+ CATEGORIES[y_test[num]]+']')
+
+
+score = metrics.classification_report(y_test, y_pred)
+print(score)

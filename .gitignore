@@ -132,3 +132,13 @@ tempCodeRunnerFile.py
 *.index
 .DS_Store
 training_checkpoints_GAN/checkpoint
+*.v2
+*.trace
+*.v2
+*.profile-empty
+*.v2
+logs_l8/20191104-161444/train/events.out.tfevents.1572880485.dhcp-158-38-215-97.wlan.hioa.no.2879.1500.v2
+logs_l8/20191104-161444/.DS_Store
+logs_l8/20191104-161223/train/events.out.tfevents.1572880344.dhcp-158-38-215-97.wlan.hioa.no.2655.1500.v2
+logs_l8/.DS_Store
+data/.DS_Store

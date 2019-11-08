@@ -3,8 +3,8 @@ import tensorflow as tf
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import BatchNormalization, LeakyReLU, Reshape, Dense, Dropout, Conv2D, Conv2DTranspose, Flatten
 
-import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+import datetime, os
+#os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -13,10 +13,10 @@ import cv2
 
 from IPython import display
 
-IMG_SIZE = 128
-CHANNELS = 1
+IMG_SIZE = 64
+CHANNELS = 3
 
-EPOCHS = 5000
+EPOCHS = 1500
 
 NOISE_DIM = IMG_SIZE
 num_examples_to_generate = 16
@@ -38,6 +38,9 @@ CATEGORIES = [
     'ulcerative-colitis'
 ]
 
+train_loss = tf.keras.metrics.Mean('train_loss', dtype=tf.float32)
+train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy('train_accuracy')
+
 def create_training_data(selected=0): 
     training_data = []   
     category = CATEGORIES[selected]
@@ -45,7 +48,7 @@ def create_training_data(selected=0):
 
     for img in os.listdir(path):
         try:
-            img_array = cv2.imread(os.path.join(path,img), cv2.IMREAD_GRAYSCALE)
+            img_array = cv2.imread(os.path.join(path,img)) if (CHANNELS == 3) else  cv2.imread(os.path.join(path,img), cv2.IMREAD_GRAYSCALE)
             new_img_array = cv2.resize(img_array, (IMG_SIZE, IMG_SIZE))
             training_data.append([new_img_array, selected])
         except Exception:
@@ -58,12 +61,13 @@ def create_training_data(selected=0):
         y.append(label)
 
     X = np.array(X).reshape(-1, IMG_SIZE, IMG_SIZE, CHANNELS)
+    X = X / 255.0
     return (X, y)
 
 def build_generator_model():
     size = int(IMG_SIZE/4)
     return Sequential([
-        Dense(size*size*256, use_bias=False, input_shape=(IMG_SIZE,)),
+        Dense(size*size*256, use_bias=False, input_shape=(NOISE_DIM,)),
         BatchNormalization(),
         LeakyReLU(),
         Reshape((size, size, 256)),
@@ -76,7 +80,7 @@ def build_generator_model():
         Conv2DTranspose(64, (5, 5), strides=(2, 2), padding='same', use_bias=False),
         BatchNormalization(),
         LeakyReLU(),
-        Conv2DTranspose(1, (5, 5), strides=(2, 2), padding='same', use_bias=False, activation='tanh')
+        Conv2DTranspose(CHANNELS, (5, 5), strides=(2, 2), padding='same', use_bias=False, activation='tanh')
     ])
 
 def build_discriminator_model():
@@ -128,7 +132,7 @@ def train(dataset, epochs):
 
         for image_batch in dataset:
             train_step(image_batch)
-
+            
         display.clear_output(wait=True)
         generate_and_save_images(generator, epoch + 1, SEED)
 
@@ -141,6 +145,7 @@ def train(dataset, epochs):
     generate_and_save_images(generator,epochs,SEED)
 
 
+
 def generate_and_save_images(model, epoch, test_input):
     predictions = model(test_input, training=False)
 
@@ -151,14 +156,13 @@ def generate_and_save_images(model, epoch, test_input):
     #     plt.imshow(predictions[i, :, :, 0] * 127.5 + 127.5, cmap='gray')
     #     plt.axis('off')
 
-    plt.imshow(predictions[0, :, :, 0] * IMG_SIZE + IMG_SIZE, cmap='gray')
+    plt.imshow(predictions[0, :, :, 0] * IMG_SIZE + IMG_SIZE)
     plt.axis('off')
     plt.savefig('syntetic/image_at_epoch_{:04d}.png'.format(epoch))
     plt.close()
     # plt.show()
 
 (train_images, train_labels) = create_training_data()
-train_images = (train_images - 127.5) / 127.5 
 train_dataset = tf.data.Dataset.from_tensor_slices(train_images).shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
 
 generator = build_generator_model()
