@@ -18,7 +18,7 @@ channels = 1
 
 EPOCHS = 5000
 noise_dim = img_size
-num_examples_to_generate = 1
+num_examples_to_generate = 16
 
 seed = tf.random.normal([num_examples_to_generate, noise_dim])
 cross_entropy = tf.keras.losses.BinaryCrossentropy(from_logits=True)
@@ -48,6 +48,7 @@ def create_training_data(selected=0):
             training_data.append([new_img_array, selected])
         except Exception:
             print('Building training data for ' + str(category))
+    
     (X, y) = ([], [])
 
     for feature, label in training_data:
@@ -57,7 +58,7 @@ def create_training_data(selected=0):
     X = np.array(X).reshape(-1, img_size, img_size, channels)
     return (X, y)
 
-def make_generator_model():
+def build_generator_model():
     size = int(img_size/4)
     return Sequential([
         Dense(size*size*256, use_bias=False, input_shape=(128,)),
@@ -76,7 +77,7 @@ def make_generator_model():
         Conv2DTranspose(1, (5, 5), strides=(2, 2), padding='same', use_bias=False, activation='tanh')
     ])
 
-def make_discriminator_model():
+def build_discriminator_model():
     return Sequential([
         Conv2D(64, (5, 5), strides=(2, 2), padding='same', input_shape=[img_size, img_size, channels]),
         LeakyReLU(),
@@ -158,8 +159,8 @@ def generate_and_save_images(model, epoch, test_input):
 train_images = (train_images - 127.5) / 127.5 
 train_dataset = tf.data.Dataset.from_tensor_slices(train_images).shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
 
-generator = make_generator_model()
-discriminator = make_discriminator_model()
+generator = build_generator_model()
+discriminator = build_discriminator_model()
 generator_optimizer = tf.keras.optimizers.Adam(1e-4)
 discriminator_optimizer = tf.keras.optimizers.Adam(1e-4)
 
@@ -171,9 +172,9 @@ checkpoint = tf.train.Checkpoint(
     generator=generator, 
     discriminator=discriminator)
 
-#try:
-#    checkpoint.restore(tf.train.latest_checkpoint(checkpoint_dir))
-#except Exception as e:
-#  print(e)
+try:
+    checkpoint.restore(tf.train.latest_checkpoint(checkpoint_dir))
+except Exception as e:
+    print(e)
 
 train(train_dataset, EPOCHS)
