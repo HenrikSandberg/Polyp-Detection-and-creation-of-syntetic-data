@@ -13,18 +13,20 @@ import cv2
 
 from IPython import display
 
-img_size = 128
-channels = 1
+IMG_SIZE = 128
+CHANNELS = 1
 
 EPOCHS = 5000
-noise_dim = img_size
-num_examples_to_generate = 16
 
-seed = tf.random.normal([num_examples_to_generate, noise_dim])
+NOISE_DIM = IMG_SIZE
+num_examples_to_generate = 16
+SEED = tf.random.normal([num_examples_to_generate, NOISE_DIM])
+
 cross_entropy = tf.keras.losses.BinaryCrossentropy(from_logits=True)
 
 BUFFER_SIZE = 60000
 BATCH_SIZE = 256
+
 CATEGORIES = [
     'dyed-lifted-polyps', 
     'dyed-resection-margins', 
@@ -44,7 +46,7 @@ def create_training_data(selected=0):
     for img in os.listdir(path):
         try:
             img_array = cv2.imread(os.path.join(path,img), cv2.IMREAD_GRAYSCALE)
-            new_img_array = cv2.resize(img_array, (img_size, img_size))
+            new_img_array = cv2.resize(img_array, (IMG_SIZE, IMG_SIZE))
             training_data.append([new_img_array, selected])
         except Exception:
             print('Building training data for ' + str(category))
@@ -55,13 +57,13 @@ def create_training_data(selected=0):
         X.append(feature)
         y.append(label)
 
-    X = np.array(X).reshape(-1, img_size, img_size, channels)
+    X = np.array(X).reshape(-1, IMG_SIZE, IMG_SIZE, CHANNELS)
     return (X, y)
 
 def build_generator_model():
-    size = int(img_size/4)
+    size = int(IMG_SIZE/4)
     return Sequential([
-        Dense(size*size*256, use_bias=False, input_shape=(128,)),
+        Dense(size*size*256, use_bias=False, input_shape=(IMG_SIZE,)),
         BatchNormalization(),
         LeakyReLU(),
         Reshape((size, size, 256)),
@@ -79,7 +81,7 @@ def build_generator_model():
 
 def build_discriminator_model():
     return Sequential([
-        Conv2D(64, (5, 5), strides=(2, 2), padding='same', input_shape=[img_size, img_size, channels]),
+        Conv2D(64, (5, 5), strides=(2, 2), padding='same', input_shape=[IMG_SIZE, IMG_SIZE, CHANNELS]),
         LeakyReLU(),
         Dropout(0.3),
         Conv2D(128, (5, 5), strides=(2, 2), padding='same'),
@@ -103,7 +105,7 @@ def generator_loss(fake_output):
 
 @tf.function
 def train_step(images):
-    noise = tf.random.normal([BATCH_SIZE, noise_dim])
+    noise = tf.random.normal([BATCH_SIZE, NOISE_DIM])
 
     with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
       generated_images = generator(noise, training=True)
@@ -128,7 +130,7 @@ def train(dataset, epochs):
             train_step(image_batch)
 
         display.clear_output(wait=True)
-        generate_and_save_images(generator, epoch + 1, seed)
+        generate_and_save_images(generator, epoch + 1, SEED)
 
         if (epoch + 1) % 15 == 0:
             checkpoint.save(file_prefix = checkpoint_prefix)
@@ -136,7 +138,7 @@ def train(dataset, epochs):
         print ('Time for epoch {} is {} sec'.format(epoch + 1, int(time.time()-start)))
         
     display.clear_output(wait=True)
-    generate_and_save_images(generator,epochs,seed)
+    generate_and_save_images(generator,epochs,SEED)
 
 
 def generate_and_save_images(model, epoch, test_input):
@@ -149,7 +151,7 @@ def generate_and_save_images(model, epoch, test_input):
     #     plt.imshow(predictions[i, :, :, 0] * 127.5 + 127.5, cmap='gray')
     #     plt.axis('off')
 
-    plt.imshow(predictions[0, :, :, 0] * img_size + img_size, cmap='gray')
+    plt.imshow(predictions[0, :, :, 0] * IMG_SIZE + IMG_SIZE, cmap='gray')
     plt.axis('off')
     plt.savefig('syntetic/image_at_epoch_{:04d}.png'.format(epoch))
     plt.close()

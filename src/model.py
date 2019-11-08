@@ -25,8 +25,10 @@ from keras.preprocessing import image
 import pickle
 
 #GLOBALE VALUES
-img_size = 256
-use_color_images = False
+IMG_SIZE = 128
+USE_COLOR = False
+CHANNELS = 3 if USE_COLOR else 1
+COLOR_STATE = "color" if USE_COLOR else "gray"
 
 CATEGORIES = [
     'dyed-lifted-polyps', 
@@ -52,8 +54,8 @@ def create_training_data():
 
         for img in os.listdir(path):
             try:
-                img_array = cv2.imread(os.path.join(path,img)) if use_color_images else cv2.imread(os.path.join(path,img), cv2.IMREAD_GRAYSCALE) 
-                img_array = cv2.resize(img_array, (img_size, img_size))
+                img_array = cv2.imread(os.path.join(path,img)) if USE_COLOR else cv2.imread(os.path.join(path,img), cv2.IMREAD_GRAYSCALE) 
+                img_array = cv2.resize(img_array, (IMG_SIZE, IMG_SIZE))
                 training_data.append([img_array, class_num])
             except Exception:
                 print('Building training data for ' + str(category))
@@ -63,8 +65,7 @@ def create_training_data():
 
 # Creates an pickle fil. This can directly be implemented into the model for quicker training
 def create_file(name, data):
-    state = "color" if use_color_images else "gray"
-    pickle_out = open("loaded_data/"+name+"_"+str(img_size)+"_"+state+".pickle","wb")
+    pickle_out = open("loaded_data/"+name+"_"+str(IMG_SIZE)+"_"+COLOR_STATE+".pickle","wb")
     pickle.dump(data, pickle_out)
     pickle_out.close()
 
@@ -78,11 +79,10 @@ def defining_features_and_labels():
     (X, y) = ([], [])
 
     try:
-        state = "color" if use_color_images else "gray"
-        pickle_in = open("loaded_data/X_"+str(img_size)+"_"+str(state)+".pickle","rb")
+        pickle_in = open("loaded_data/X_"+str(IMG_SIZE)+"_"+str(COLOR_STATE)+".pickle","rb")
         X = pickle.load(pickle_in)
 
-        pickle_in = open("loaded_data/y_"+str(img_size)+"_"+str(state)+".pickle","rb")
+        pickle_in = open("loaded_data/y_"+str(IMG_SIZE)+"_"+str(COLOR_STATE)+".pickle","rb")
         y = pickle.load(pickle_in)
 
     except Exception as e:
@@ -94,7 +94,7 @@ def defining_features_and_labels():
             X.append(feature)
             y.append(label)
 
-        X = np.array(X).reshape(-1, img_size, img_size, 3 if use_color_images else 1)        
+        X = np.array(X).reshape(-1, IMG_SIZE, IMG_SIZE, CHANNELS)        
         X = X/255.0
 
         create_file('y', y)
@@ -108,7 +108,7 @@ def defining_features_and_labels():
 '''
 def build_model():
     return Sequential([
-        Conv2D(64, (3, 3), activation='relu', input_shape=(img_size, img_size, 3 if use_color_images else 1)),
+        Conv2D(64, (3, 3), activation='relu', input_shape=(IMG_SIZE, IMG_SIZE, CHANNELS)),
         MaxPool2D((2, 2)),
         Conv2D(128, (3, 3), activation='relu'),
         MaxPool2D((2, 2)),
