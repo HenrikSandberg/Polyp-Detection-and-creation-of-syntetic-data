@@ -127,3 +127,8 @@ tempCodeRunnerFile.py
 *.h5
 *.h5
 *.png
+*.data-00000-of-00001
+.DS_Store
+*.index
+.DS_Store
+training_checkpoints_GAN/checkpoint

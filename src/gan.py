@@ -6,11 +6,8 @@ from tensorflow.keras.layers import BatchNormalization, LeakyReLU, Reshape, Dens
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
-# import glob
-# import imageio
 import matplotlib.pyplot as plt
 import numpy as np
-# import PIL
 import time
 import cv2
 
@@ -20,8 +17,8 @@ img_size = 128
 channels = 1
 
 EPOCHS = 5000
-noise_dim = 100
-num_examples_to_generate = 16
+noise_dim = img_size
+num_examples_to_generate = 1
 
 seed = tf.random.normal([num_examples_to_generate, noise_dim])
 cross_entropy = tf.keras.losses.BinaryCrossentropy(from_logits=True)
@@ -70,6 +67,9 @@ def make_generator_model():
         Conv2DTranspose(128, (5, 5), strides=(1, 1), padding='same', use_bias=False),
         BatchNormalization(),
         LeakyReLU(),
+        Conv2DTranspose(128, (5, 5), strides=(1, 1), padding='same', use_bias=False),
+        BatchNormalization(),
+        LeakyReLU(),
         Conv2DTranspose(64, (5, 5), strides=(2, 2), padding='same', use_bias=False),
         BatchNormalization(),
         LeakyReLU(),
@@ -82,6 +82,9 @@ def make_discriminator_model():
         LeakyReLU(),
         Dropout(0.3),
         Conv2D(128, (5, 5), strides=(2, 2), padding='same'),
+        LeakyReLU(),
+        Dropout(0.3),
+        Conv2D(256, (5, 5), strides=(2, 2), padding='same'),
         LeakyReLU(),
         Dropout(0.3),
         Flatten(),
@@ -168,9 +171,9 @@ checkpoint = tf.train.Checkpoint(
     generator=generator, 
     discriminator=discriminator)
 
-try:
-    checkpoint.restore(tf.train.latest_checkpoint(checkpoint_dir))
-except Exception as e:
-    print(e)
+#try:
+#    checkpoint.restore(tf.train.latest_checkpoint(checkpoint_dir))
+#except Exception as e:
+#  print(e)
 
 train(train_dataset, EPOCHS)
