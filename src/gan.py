@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import time
 import cv2
+from PIL import Image
 
 from IPython import display
 
@@ -61,7 +62,7 @@ def create_training_data(selected=0):
         y.append(label)
 
     X = np.array(X).reshape(-1, IMG_SIZE, IMG_SIZE, CHANNELS)
-    X = X / 255.0
+    X = (X - 127.5) / 127.5
     return (X, y)
 
 def build_generator_model():
@@ -145,7 +146,6 @@ def train(dataset, epochs):
     generate_and_save_images(generator,epochs,SEED)
 
 
-
 def generate_and_save_images(model, epoch, test_input):
     predictions = model(test_input, training=False)
 
@@ -161,6 +161,20 @@ def generate_and_save_images(model, epoch, test_input):
     plt.savefig('syntetic/image_at_epoch_{:04d}.png'.format(epoch))
     plt.close()
     # plt.show()
+
+def generate_and_save_images(model, epoch, test_input, rows, cols):
+    # Notice `training` is set to False.
+    # This is so all layers run in inference mode (batchnorm).
+    predictions = model(test_input, training=False)
+    fig = plt.figure(figsize=(14,14))
+    for i in range(predictions.shape[0]):
+        plt.subplot(rows, cols, i+1)
+        plt.imshow((predictions[i, :, :, :] * 127.5 + 127.5) / 255.)
+        plt.axis('off') 
+        
+    plt.subplots_adjust(wspace=0, hspace=0)
+    plt.savefig('image_at_epoch_{:04d}.png'.format(epoch))
+    plt.show()
 
 (train_images, train_labels) = create_training_data()
 train_dataset = tf.data.Dataset.from_tensor_slices(train_images).shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
