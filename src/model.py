@@ -1,14 +1,14 @@
-import matplotlib.pyplot as plt
 import numpy as np
 import time
 
 from sklearn import metrics
 from sklearn import svm
 
-#Data preprosessing
+#Data preprocessing
 import pickle
 import cv2
 import random
+import matplotlib.pyplot as plt
 
 # Disables warning, doesn't enable AVX/FMA
 import datetime, os
@@ -87,7 +87,7 @@ def create_file(name, data):
     use the two privious functions to create the training data and 
     save them into files.
 '''
-def defining_features_and_labels():
+def create_features_and_labels():
     (X, y) = ([], [])
 
     try:
@@ -105,12 +105,18 @@ def defining_features_and_labels():
         for feature, label in training_data:
             X.append(feature)
             y.append(label)
-        X = np.array(X).reshape(-1, IMG_SIZE, IMG_SIZE, CHANNELS)        
-        X = X / 255 #(X-127.0)/127.0
 
+        X = np.array(X).reshape(-1, IMG_SIZE, IMG_SIZE, CHANNELS)        
+        X = (X-127.0)/127.0
+        
+        create_file('y', y)
+        create_file('X', X)
 
     #Splits and sets aside data for validation of the models performasce
-    trainging_size = 0.98
+    return (X,y)
+
+
+def split_into_train_and_test(X, y, trainging_size = 0.98):
     X_split = int(len(X)*trainging_size)
     X1 = X[0: X_split]
     X2 = X[X_split: ]
@@ -118,10 +124,6 @@ def defining_features_and_labels():
     y_split = int(len(y)*trainging_size)
     y1 = y[0: y_split]
     y2 = y[y_split: ]
-    
-    #create_file('y', y)
-    #create_file('X', X)
-
     return (X1, y1), (X2, y2)
 
 ''' 
@@ -151,7 +153,8 @@ def plot_history(history):
     plt.legend(loc='lower right')
     plt.show()
 
-(train_features, train_lables), (x_test, y_test) = defining_features_and_labels()
+(features, labels) = create_features_and_labels()
+(x_train, y_train), (x_test, y_test) = split_into_train_and_test(features, labels)
 model = build_model()
 
 log_dir="logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -177,8 +180,8 @@ model.compile(
     metrics=['sparse_categorical_accuracy', 'accuracy'])
 
 history = model.fit(
-    train_features, 
-    train_lables, 
+    x_train, 
+    y_train, 
     batch_size=32, 
     epochs=7, 
     validation_split=0.15,

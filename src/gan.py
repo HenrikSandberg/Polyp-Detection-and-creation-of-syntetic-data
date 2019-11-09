@@ -10,17 +10,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 import time
 import cv2
-from PIL import Image
 
 from IPython import display
 
 IMG_SIZE = 64
 CHANNELS = 3
 
-EPOCHS = 1500
+EPOCHS = 1000
 
-NOISE_DIM = IMG_SIZE
-num_examples_to_generate = 16
+NOISE_DIM = 64
+num_examples_to_generate = 10
 SEED = tf.random.normal([num_examples_to_generate, NOISE_DIM])
 
 cross_entropy = tf.keras.losses.BinaryCrossentropy(from_logits=True)
@@ -29,7 +28,7 @@ BUFFER_SIZE = 60000
 BATCH_SIZE = 256
 
 CATEGORIES = [
-    'dyed-lifted-polyps', 
+     'dyed-lifted-polyps', 
     'dyed-resection-margins', 
     'esophagitis', 
     'normal-cecum', 
@@ -38,14 +37,15 @@ CATEGORIES = [
     'polyps', 
     'ulcerative-colitis'
 ]
+SELECTED_CATEGORY = CATEGORIES[0]
 
 train_loss = tf.keras.metrics.Mean('train_loss', dtype=tf.float32)
 train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy('train_accuracy')
 
 def create_training_data(selected=0): 
     training_data = []   
-    category = CATEGORIES[selected]
-    path = os.path.join('data/', category)
+    SELECTED_CATEGORY = CATEGORIES[selected]
+    path = os.path.join('data/', SELECTED_CATEGORY)
 
     for img in os.listdir(path):
         try:
@@ -53,7 +53,7 @@ def create_training_data(selected=0):
             new_img_array = cv2.resize(img_array, (IMG_SIZE, IMG_SIZE))
             training_data.append([new_img_array, selected])
         except Exception:
-            print('Building training data for ' + str(category))
+            print('Building training data for ' + str(SELECTED_CATEGORY))
     
     (X, y) = ([], [])
 
@@ -62,7 +62,7 @@ def create_training_data(selected=0):
         y.append(label)
 
     X = np.array(X).reshape(-1, IMG_SIZE, IMG_SIZE, CHANNELS)
-    X = (X - 127.5) / 127.5
+    X = (X - 127.5)/ 127.5
     return (X, y)
 
 def build_generator_model():
@@ -86,7 +86,7 @@ def build_generator_model():
 
 def build_discriminator_model():
     return Sequential([
-        Conv2D(64, (5, 5), strides=(2, 2), padding='same', input_shape=[IMG_SIZE, IMG_SIZE, CHANNELS]),
+        Conv2D(IMG_SIZE, (5, 5), strides=(2, 2), padding='same', input_shape=[IMG_SIZE, IMG_SIZE, CHANNELS]),
         LeakyReLU(),
         Dropout(0.3),
         Conv2D(128, (5, 5), strides=(2, 2), padding='same'),
@@ -145,7 +145,6 @@ def train(dataset, epochs):
     display.clear_output(wait=True)
     generate_and_save_images(generator,epochs,SEED)
 
-
 def generate_and_save_images(model, epoch, test_input):
     predictions = model(test_input, training=False)
 
@@ -156,45 +155,61 @@ def generate_and_save_images(model, epoch, test_input):
     #     plt.imshow(predictions[i, :, :, 0] * 127.5 + 127.5, cmap='gray')
     #     plt.axis('off')
 
-    plt.imshow(predictions[0, :, :, 0] * IMG_SIZE + IMG_SIZE)
+    plt.imshow((predictions[0, :, :, 0] + 127.5) * 127.5)
     plt.axis('off')
-    plt.savefig('syntetic/image_at_epoch_{:04d}.png'.format(epoch))
+    plt.savefig('syntetic/train/image_at_epoch_{:04d}.png'.format(epoch))
     plt.close()
+    #img = (predictions[0, :, :, 0] + 127.5) * 127.5
+    #print(img)
+    #cv2.imwrite("syntetic/train/image.jpg", img)
+    #cv2.imshow(img)
     # plt.show()
 
-def generate_and_save_images(model, epoch, test_input, rows, cols):
-    # Notice `training` is set to False.
-    # This is so all layers run in inference mode (batchnorm).
-    predictions = model(test_input, training=False)
-    fig = plt.figure(figsize=(14,14))
-    for i in range(predictions.shape[0]):
-        plt.subplot(rows, cols, i+1)
-        plt.imshow((predictions[i, :, :, :] * 127.5 + 127.5) / 255.)
-        plt.axis('off') 
+
+def create_syntetic_data(category, model):
+    checkpoint_dir = './training_checkpoints_GAN/{}/'.format(category)
+    
+    try:
+        checkpoint.restore(tf.train.latest_checkpoint(checkpoint_dir))
+        for _ in range(0, 100):
+            input = tf.random.normal([num_examples_to_generate, NOISE_DIM])
+            predictions = model(input, training=False)
+
+            for i in range(predictions.shape[0]):
+                plt.imshow((predictions[i, :, :, 0] + 127.5) * 127.5)
+                plt.axis('off')
+                plt.savefig('syntetic/{}/image_at_epoch_{:04d}.png').format(category)
+                plt.close()
+    except Exception as e:
+        print(e)
+
+
+for i in range(len(CATEGORIES)):
+    print("Now traingin for category {}".format(CATEGORIES[i]))
+
+    (train_images, train_labels) = create_training_data(i)
+    train_dataset = tf.data.Dataset.from_tensor_slices(train_images).shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
+
+    generator = build_generator_model()
+    discriminator = build_discriminator_model()
+    generator_optimizer = tf.keras.optimizers.Adam(1e-4)
+    discriminator_optimizer = tf.keras.optimizers.Adam(1e-4)
+
+    checkpoint_dir = './training_checkpoints_GAN/{}/'.format(SELECTED_CATEGORY)
+    checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
+    checkpoint = tf.train.Checkpoint(
+        generator_optimizer=generator_optimizer, 
+        discriminator_optimizer=discriminator_optimizer, 
+        generator=generator, 
+        discriminator=discriminator)
+
+    try:
+        checkpoint.restore(tf.train.latest_checkpoint(checkpoint_dir))
+    except Exception as e:
+        print(e)
         
-    plt.subplots_adjust(wspace=0, hspace=0)
-    plt.savefig('image_at_epoch_{:04d}.png'.format(epoch))
-    plt.show()
+    train(train_dataset, EPOCHS)
 
-(train_images, train_labels) = create_training_data()
-train_dataset = tf.data.Dataset.from_tensor_slices(train_images).shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
 
-generator = build_generator_model()
-discriminator = build_discriminator_model()
-generator_optimizer = tf.keras.optimizers.Adam(1e-4)
-discriminator_optimizer = tf.keras.optimizers.Adam(1e-4)
-
-checkpoint_dir = './training_checkpoints_GAN'
-checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
-checkpoint = tf.train.Checkpoint(
-    generator_optimizer=generator_optimizer, 
-    discriminator_optimizer=discriminator_optimizer, 
-    generator=generator, 
-    discriminator=discriminator)
-
-try:
-    checkpoint.restore(tf.train.latest_checkpoint(checkpoint_dir))
-except Exception as e:
-    print(e)
-
-train(train_dataset, EPOCHS)
+for category in CATEGORIES:
+    create_syntetic_data(category, build_discriminator_model())
