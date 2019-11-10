@@ -52,23 +52,12 @@ def create_training_data():
 
         print('Building training data for ' + str(category))
         for img in os.listdir(path):
-            try:
-                #y=25
-                #x=50
-                #h=400
-                #w=500
-                
+            try:                
                 img_path = os.path.join(path,img)
                 img_file = cv2.imread(img_path) if USE_COLOR else cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
 
                 img_array = cv2.resize(img_file, (IMG_SIZE, IMG_SIZE))
-                training_data.append([img_array, class_num])
-
-                #crop = img_file[y:y+h, x:x+w]
-                #cv2.imshow(img_array, crop)
-                #cv2.waitKey(0)
-                #plt.imshow(img_array)
-                #plt.show()                
+                training_data.append([img_array, class_num])             
             except Exception:
                 pass
             
@@ -195,34 +184,18 @@ print(score)
 
 '''
 Color
-              precision    recall  f1-score   support
-
-           0       0.85      0.71      0.77        24
-           1       0.68      0.83      0.75        18
-           2       0.74      0.82      0.78        17
-           3       0.89      0.96      0.93        26
+           0       0.90      0.79      0.84        24
+           1       0.76      0.89      0.82        18
+           2       0.86      0.71      0.77        17
+           3       0.89      0.92      0.91        26
            4       0.91      1.00      0.95        20
-           5       0.80      0.63      0.71        19
-           6       0.85      0.81      0.83        21
-           7       0.86      0.80      0.83        15
+           5       0.75      0.79      0.77        19
+           6       0.83      0.71      0.77        21
+           7       0.82      0.93      0.87        15
 
-    accuracy                           0.82       160
-   macro avg       0.82      0.82      0.82       160
-weighted avg       0.83      0.82      0.82       160
+    accuracy                           0.84       160
+   macro avg       0.84      0.84      0.84       160
+weighted avg       0.85      0.84      0.84       160
 
-Black and White
-              precision    recall  f1-score   support
-
-           0       0.38      0.38      0.38        16
-           1       0.53      0.59      0.56        17
-           2       0.65      0.88      0.75        17
-           3       1.00      0.82      0.90        17
-           4       0.92      0.79      0.85        28
-           5       0.69      0.65      0.67        17
-           6       0.48      0.48      0.48        23
-           7       0.80      0.80      0.80        25
-
-    accuracy                           0.68       160
-   macro avg       0.68      0.67      0.67       160
-weighted avg       0.70      0.68      0.68       160
+Gray
 '''
