@@ -142,13 +142,16 @@ def plot_history(history):
     plt.legend(loc='lower right')
     plt.show()
 
+#Creating model, data and splits training data from validation data
 (features, labels) = create_features_and_labels()
 (x_train, y_train), (x_test, y_test) = split_into_train_and_test(features, labels)
 model = build_model()
 
-log_dir="logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+#Generate log to Tensorbord
+log_dir="logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + NAME
 tensorboard = TensorBoard(log_dir=log_dir, histogram_freq=1)
 
+#Generate a trained model
 checkpoint_path = "training_checkpoints_CNN/"+NAME+".h5"
 checkpoint_dir = os.path.dirname(checkpoint_path)
 
@@ -158,6 +161,7 @@ cp_callback = tf.keras.callbacks.ModelCheckpoint(
     verbose=1, 
     monitor='val_loss')
 
+#Load the pretraind model if it exist
 try:
     model.load_weights(checkpoint_path)
 except Exception as e:
@@ -176,6 +180,7 @@ history = model.fit(
     validation_split=0.15,
     callbacks=[ cp_callback, tensorboard ]) 
 
+#Evaluate the models performance
 y_pred = model.predict(x_test)
 y_pred = np.argmax(y_pred, axis = 1)
 
@@ -184,18 +189,34 @@ print(score)
 
 '''
 Color
-           0       0.90      0.79      0.84        24
-           1       0.76      0.89      0.82        18
-           2       0.86      0.71      0.77        17
-           3       0.89      0.92      0.91        26
-           4       0.91      1.00      0.95        20
-           5       0.75      0.79      0.77        19
-           6       0.83      0.71      0.77        21
-           7       0.82      0.93      0.87        15
+              precision    recall  f1-score   support
 
-    accuracy                           0.84       160
-   macro avg       0.84      0.84      0.84       160
-weighted avg       0.85      0.84      0.84       160
+           0       0.89      0.64      0.74        25
+           1       0.65      0.87      0.74        15
+           2       0.70      0.80      0.74        20
+           3       0.86      1.00      0.92        12
+           4       1.00      1.00      1.00        23
+           5       0.73      0.61      0.67        18
+           6       0.77      0.85      0.81        27
+           7       0.88      0.75      0.81        20
+
+    accuracy                           0.81       160
+   macro avg       0.81      0.81      0.80       160
+weighted avg       0.82      0.81      0.80       160
 
 Gray
+              precision    recall  f1-score   support
+
+           0       0.39      0.47      0.43        19
+           1       0.59      0.50      0.54        20
+           2       0.77      0.83      0.80        24
+           3       0.72      0.81      0.76        16
+           4       0.95      1.00      0.98        20
+           5       0.83      0.73      0.78        26
+           6       0.46      0.32      0.37        19
+           7       0.68      0.81      0.74        16
+
+    accuracy                           0.69       160
+   macro avg       0.67      0.68      0.68       160
+weighted avg       0.68      0.69      0.68       160
 '''
