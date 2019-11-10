@@ -27,6 +27,8 @@ cross_entropy = tf.keras.losses.BinaryCrossentropy(from_logits=True)
 BUFFER_SIZE = 60000
 BATCH_SIZE = 256
 
+DILATION_RATE = (1, 1)
+
 CATEGORIES = [
      'dyed-lifted-polyps', 
     'dyed-resection-margins', 
@@ -72,27 +74,27 @@ def build_generator_model():
         BatchNormalization(),
         LeakyReLU(),
         Reshape((size, size, 256)),
-        Conv2DTranspose(128, (5, 5), strides=(1, 1), padding='same', use_bias=False),
+        Conv2DTranspose(128, DILATION_RATE, strides=(1, 1), padding='same', use_bias=False),
         BatchNormalization(),
         LeakyReLU(),
-        Conv2DTranspose(128, (5, 5), strides=(1, 1), padding='same', use_bias=False),
+        Conv2DTranspose(128, DILATION_RATE, strides=(1, 1), padding='same', use_bias=False),
         BatchNormalization(),
         LeakyReLU(),
-        Conv2DTranspose(64, (5, 5), strides=(2, 2), padding='same', use_bias=False),
+        Conv2DTranspose(64, DILATION_RATE, strides=(2, 2), padding='same', use_bias=False),
         BatchNormalization(),
         LeakyReLU(),
-        Conv2DTranspose(CHANNELS, (5, 5), strides=(2, 2), padding='same', use_bias=False, activation='tanh')
+        Conv2DTranspose(CHANNELS, DILATION_RATE, strides=(2, 2), padding='same', use_bias=False, activation='tanh')
     ])
 
 def build_discriminator_model():
     return Sequential([
-        Conv2D(IMG_SIZE, (5, 5), strides=(2, 2), padding='same', input_shape=[IMG_SIZE, IMG_SIZE, CHANNELS]),
+        Conv2D(IMG_SIZE, DILATION_RATE, strides=(2, 2), padding='same', input_shape=[IMG_SIZE, IMG_SIZE, CHANNELS]),
         LeakyReLU(),
         Dropout(0.3),
-        Conv2D(128, (5, 5), strides=(2, 2), padding='same'),
+        Conv2D(128, DILATION_RATE, strides=(2, 2), padding='same'),
         LeakyReLU(),
         Dropout(0.3),
-        Conv2D(256, (5, 5), strides=(2, 2), padding='same'),
+        Conv2D(256, DILATION_RATE, strides=(2, 2), padding='same'),
         LeakyReLU(),
         Dropout(0.3),
         Flatten(),
@@ -148,44 +150,33 @@ def train(dataset, epochs):
 def generate_and_save_images(model, epoch, test_input):
     predictions = model(test_input, training=False)
 
-    #fig = plt.figure(figsize=(4,4))
-    
-    # for i in range(predictions.shape[0]):
-    #     plt.subplot(4, 4, i+1)
-    #     plt.imshow(predictions[i, :, :, 0] * 127.5 + 127.5, cmap='gray')
-    #     plt.axis('off')
-
     plt.imshow((predictions[0, :, :, 0] + 127.5) * 127.5)
     plt.axis('off')
     plt.savefig('syntetic/train/image_at_epoch_{:04d}.png'.format(epoch))
     plt.close()
-    #img = (predictions[0, :, :, 0] + 127.5) * 127.5
-    #print(img)
-    #cv2.imwrite("syntetic/train/image.jpg", img)
-    #cv2.imshow(img)
-    # plt.show()
 
 
-def create_syntetic_data(category, model):
-    checkpoint_dir = './training_checkpoints_GAN/{}/'.format(category)
+def create_syntetic_data(checkpoint, model):
+    checkpoint_dir = './training_checkpoints_GAN/{}/'.format(SELECTED_CATEGORY)
     
     try:
         checkpoint.restore(tf.train.latest_checkpoint(checkpoint_dir))
-        for _ in range(0, 100):
+        for y in range(0, 100):
             input = tf.random.normal([num_examples_to_generate, NOISE_DIM])
             predictions = model(input, training=False)
 
             for i in range(predictions.shape[0]):
                 plt.imshow((predictions[i, :, :, 0] + 127.5) * 127.5)
                 plt.axis('off')
-                plt.savefig('syntetic/{}/image_at_epoch_{:04d}.png').format(category)
+                plt.savefig('syntetic/{}/{}_{}_{}.png'.format(SELECTED_CATEGORY, SELECTED_CATEGORY, y, i))
                 plt.close()
     except Exception as e:
         print(e)
 
 
 for i in range(len(CATEGORIES)):
-    print("Now traingin for category {}".format(CATEGORIES[i]))
+    SELECTED_CATEGORY = CATEGORIES[i]
+    print("Now traingin for category {}".format(SELECTED_CATEGORY))
 
     (train_images, train_labels) = create_training_data(i)
     train_dataset = tf.data.Dataset.from_tensor_slices(train_images).shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
@@ -209,7 +200,5 @@ for i in range(len(CATEGORIES)):
         print(e)
         
     train(train_dataset, EPOCHS)
-
-
-for category in CATEGORIES:
-    create_syntetic_data(category, build_discriminator_model())
+    print("Now generating images")
+    create_syntetic_data(checkpoint, generator)

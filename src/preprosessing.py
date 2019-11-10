@@ -12,19 +12,26 @@ CATEGORIES = [
     'ulcerative-colitis'
 ]
 
+def uniform_naming_categories():
+    for category in CATEGORIES:
+        path = os.path.join('data/', category)
+        i = 0
 
-for category in CATEGORIES:
-    path = os.path.join('data/', category)
-    class_num = CATEGORIES.index(category)
-    i = 0
+        for filename in os.listdir(path): 
+            dst =category + str(i) + ".jpg"   
+            src =path + '/'+ filename 
+            dst = 'data/'+category+'/'+ dst 
+            os.rename(src, dst) 
+            i += 1
 
-    for filename in os.listdir(path): 
-        dst =category + str(i) + ".jpg"   
-        src =path + '/'+ filename 
+def uniform_naming_syntetic():
+    for category in CATEGORIES:
+        path = os.path.join('data/syntetic/', category)
+        i = 0
 
-        if i < 900: 
-            dst = 'data/train/'+category+'/'+ dst 
-        else:
-            dst = 'data/test/'+category+'/'+ dst 
-        os.rename(src, dst) 
-        i += 1
+        for filename in os.listdir(path): 
+            dst =category + str(i) + ".jpg"   
+            src =path + '/'+ filename 
+            dst = 'data/'+category+'/'+ dst 
+            os.rename(src, dst) 
+            i += 1

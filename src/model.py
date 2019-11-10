@@ -132,11 +132,11 @@ def split_into_train_and_test(X, y, trainging_size = 0.98):
 '''
 def build_model():
     return Sequential([
-        Conv2D(64, (3, 3), activation='relu', input_shape=(IMG_SIZE, IMG_SIZE, CHANNELS)),
+        Conv2D(64, (2, 2), activation='relu', input_shape=(IMG_SIZE, IMG_SIZE, CHANNELS)),
         MaxPool2D((2, 2)),
-        Conv2D(128, (3, 3), activation='relu'),
+        Conv2D(128, (2, 2), activation='relu'),
         MaxPool2D((2, 2)),
-        Conv2D(256, (3, 3), activation='relu'),
+        Conv2D(256, (2, 2), activation='relu'),
         MaxPool2D((2, 2)),
         Flatten(),
         Dense(units=128, activation='relu'),
@@ -177,7 +177,7 @@ except Exception as e:
 model.compile(
     loss='sparse_categorical_crossentropy',
     optimizer='adam',
-    metrics=['sparse_categorical_accuracy', 'accuracy'])
+    metrics=['accuracy'])
 
 history = model.fit(
     x_train, 
@@ -190,59 +190,39 @@ history = model.fit(
 y_pred = model.predict(x_test)
 y_pred = np.argmax(y_pred, axis = 1)
 
-#for num in range(len(y_pred)):
-#    print('[PRED][ACTUAL] = [' + CATEGORIES[y_pred[num]]+'] ['+ CATEGORIES[y_test[num]]+']')
-
 score = metrics.classification_report(y_test, y_pred)
 print(score)
 
 '''
-WITH COLOR
-             precision    recall  f1-score   support
-
-           0       0.71      0.56      0.63        48
-           1       0.67      0.78      0.72        51
-           2       0.60      0.85      0.70        47
-           3       0.85      0.92      0.88        37
-           4       0.97      0.92      0.94        62
-           5       0.83      0.59      0.69        59
-           6       0.75      0.66      0.70        41
-           7       0.78      0.82      0.80        55
-
-    accuracy                           0.76       400
-   macro avg       0.77      0.76      0.76       400
-weighted avg       0.78      0.76      0.76       400
-
-
-             precision    recall  f1-score   support
-
-           0       0.76      0.79      0.78        24
-           1       0.76      0.73      0.74        22
-           2       0.90      0.41      0.56        22
-           3       0.95      0.90      0.92        20
-           4       0.76      1.00      0.87        13
-           5       0.63      0.88      0.73        25
-           6       0.81      0.68      0.74        19
-           7       0.71      0.80      0.75        15
-
-    accuracy                           0.76       160
-   macro avg       0.79      0.77      0.76       160
-weighted avg       0.78      0.76      0.75       160
-
-
-WITOUT COLOR
+Color
               precision    recall  f1-score   support
 
-           0       0.61      0.55      0.58        55
-           1       0.68      0.67      0.67        54
-           2       0.68      0.73      0.70        52
-           3       0.75      0.82      0.79        40
-           4       0.88      0.80      0.84        56
-           5       0.64      0.64      0.64        44
-           6       0.64      0.38      0.47        56
-           7       0.49      0.79      0.60        43
+           0       0.85      0.71      0.77        24
+           1       0.68      0.83      0.75        18
+           2       0.74      0.82      0.78        17
+           3       0.89      0.96      0.93        26
+           4       0.91      1.00      0.95        20
+           5       0.80      0.63      0.71        19
+           6       0.85      0.81      0.83        21
+           7       0.86      0.80      0.83        15
 
-    accuracy                           0.66       400
-   macro avg       0.67      0.67      0.66       400
-weighted avg       0.67      0.66      0.66       400
+    accuracy                           0.82       160
+   macro avg       0.82      0.82      0.82       160
+weighted avg       0.83      0.82      0.82       160
+
+Black and White
+              precision    recall  f1-score   support
+
+           0       0.38      0.38      0.38        16
+           1       0.53      0.59      0.56        17
+           2       0.65      0.88      0.75        17
+           3       1.00      0.82      0.90        17
+           4       0.92      0.79      0.85        28
+           5       0.69      0.65      0.67        17
+           6       0.48      0.48      0.48        23
+           7       0.80      0.80      0.80        25
+
+    accuracy                           0.68       160
+   macro avg       0.68      0.67      0.67       160
+weighted avg       0.70      0.68      0.68       160
 '''
