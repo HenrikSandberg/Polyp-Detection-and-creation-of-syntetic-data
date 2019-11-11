@@ -1,3 +1,10 @@
+'''
+My code has used this code created by tensorflow quite extencivly in order to make a functional Generative Adversarial Network. 
+The code is different esspecialy in the import of data part of the algorithem. I also hade to get a basic understaning of the
+alorithem in order to make it perform as expected. 
+
+Sorce: https://www.tensorflow.org/tutorials/generative/dcgan
+'''
 from __future__ import absolute_import, division, print_function, unicode_literals
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
@@ -13,6 +20,7 @@ import cv2
 
 from IPython import display
 
+#Global variables
 IMG_SIZE = 64
 CHANNELS = 3
 
@@ -27,7 +35,7 @@ cross_entropy = tf.keras.losses.BinaryCrossentropy(from_logits=True)
 BUFFER_SIZE = 60000
 BATCH_SIZE = 256
 
-DILATION_RATE = (1, 1)
+DILATION_RATE = (5, 5)
 
 CATEGORIES = [
      'dyed-lifted-polyps', 
@@ -43,7 +51,10 @@ SELECTED_CATEGORY = CATEGORIES[0]
 
 train_loss = tf.keras.metrics.Mean('train_loss', dtype=tf.float32)
 train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy('train_accuracy')
-
+'''
+Imports a specific category, then splits the content into features and lables which can be used.
+It also reshapes the features and normalizes them.
+'''
 def create_training_data(selected=0): 
     training_data = []   
     SELECTED_CATEGORY = CATEGORIES[selected]
@@ -67,6 +78,11 @@ def create_training_data(selected=0):
     X = (X - 127.5)/ 127.5
     return (X, y)
 
+'''
+This creates the generator model used in the full GAN process. 
+It takes in a nois image and trough the different layers create 
+somthing that resebles a specific category. 
+'''
 def build_generator_model():
     size = int(IMG_SIZE/4)
     return Sequential([
@@ -86,6 +102,9 @@ def build_generator_model():
         Conv2DTranspose(CHANNELS, DILATION_RATE, strides=(2, 2), padding='same', use_bias=False, activation='tanh')
     ])
 
+'''
+Generates a discriminator used to detect the quality of the generated image.
+'''
 def build_discriminator_model():
     return Sequential([
         Conv2D(IMG_SIZE, DILATION_RATE, strides=(2, 2), padding='same', input_shape=[IMG_SIZE, IMG_SIZE, CHANNELS]),
@@ -100,16 +119,22 @@ def build_discriminator_model():
         Flatten(),
         Dense(1)
     ])
-
+#Calculate discriminator loss
 def discriminator_loss(real_output, fake_output):
     real_loss = cross_entropy(tf.ones_like(real_output), real_output)
     fake_loss = cross_entropy(tf.zeros_like(fake_output), fake_output)
     total_loss = real_loss + fake_loss
     return total_loss
 
+#Calculate generator loss
 def generator_loss(fake_output):
     return cross_entropy(tf.ones_like(fake_output), fake_output)
 
+'''
+This function takes in an images and uses it as well as a genarated image to test both the generator and the
+discriminator. At the end of the function both models are evaluated on ther performance and the result will
+be used to ajust their wieghts. 
+'''
 @tf.function
 def train_step(images):
     noise = tf.random.normal([BATCH_SIZE, NOISE_DIM])
@@ -129,6 +154,7 @@ def train_step(images):
     generator_optimizer.apply_gradients(zip(gradients_of_generator, generator.trainable_variables))
     discriminator_optimizer.apply_gradients(zip(gradients_of_discriminator, discriminator.trainable_variables))
 
+#Activate the training function and forces the models to train for a specific number of epochs
 def train(dataset, epochs):
     for epoch in range(epochs):
         start = time.time()
@@ -147,6 +173,7 @@ def train(dataset, epochs):
     display.clear_output(wait=True)
     generate_and_save_images(generator,epochs,SEED)
 
+#Outputs an image to train folder. This is just used for debugging
 def generate_and_save_images(model, epoch, test_input):
     predictions = model(test_input, training=False)
 
@@ -155,7 +182,9 @@ def generate_and_save_images(model, epoch, test_input):
     plt.savefig('syntetic/train/image_at_epoch_{:04d}.png'.format(epoch))
     plt.close()
 
-
+'''
+Generate syntetic data which can be used for training in the future.
+'''
 def create_syntetic_data(checkpoint, model):
     checkpoint_dir = './training_checkpoints_GAN/{}/'.format(SELECTED_CATEGORY)
     
@@ -173,7 +202,11 @@ def create_syntetic_data(checkpoint, model):
     except Exception as e:
         print(e)
 
-
+'''
+This loop is the beginning of the running code. It goes through category by category,
+trains the algorithems and then generat syntetic data. Then repete the prosess for the
+next categorie. 
+'''
 for i in range(len(CATEGORIES)):
     SELECTED_CATEGORY = CATEGORIES[i]
     print("Now traingin for category {}".format(SELECTED_CATEGORY))

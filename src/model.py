@@ -4,6 +4,8 @@ import time
 from sklearn import metrics
 from sklearn import svm
 
+#tensorboard --logdir='logs/fit/'
+
 #Data preprocessing
 import pickle
 import cv2
@@ -72,7 +74,8 @@ def remove_green_box(img_file, img_path, img):
 ''' 
 Genaerate trainingdata by moving in to the different directories, using the name on the directories as labels for the data. 
 The data from the images are together withe the labels added into an array. 
-At the end, the data is suffeld in order to make sure that alle the calssifications are moved around. '''
+At the end, the data is suffeld in order to make sure that alle the calssifications are moved around. 
+'''
 def create_training_data(): 
     training_data = []   
     for category in CATEGORIES:
@@ -102,10 +105,10 @@ def create_file(name, data):
     pickle_out.close()
 
 ''' 
-    This function attemts to load the pickle files into memory.
-    If the two pickle files do not exist, the function will then 
-    use the two privious functions to create the training data and 
-    save them into files.
+This function attemts to load the pickle files into memory.
+If the two pickle files do not exist, the function will then 
+use the two privious functions to create the training data and 
+save them into files.
 '''
 def create_features_and_labels():
     (X, y) = ([], [])
@@ -130,8 +133,8 @@ def create_features_and_labels():
         X = (X-127.0)/127.0
         #X = X / 255.0
         
-        #create_file('y', y)
-        #create_file('X', X)
+        create_file('y', y)
+        create_file('X', X)
 
     #Splits and sets aside data for validation of the models performasce
     return (X,y)
@@ -145,11 +148,12 @@ def split_into_train_and_test(X, y, trainging_size = 0.98):
     y_split = int(len(y)*trainging_size)
     y1 = y[0: y_split]
     y2 = y[y_split: ]
+
     return (X1, y1), (X2, y2)
 
 ''' 
-    Builds a CNN model with two hidden layers. The model uses a softmax in order to determen which 
-    category is the most correct. 
+Builds a CNN model with two hidden layers. The model uses a softmax in order to determen which 
+category is the most correct. 
 '''
 def build_model():
     return Sequential([
@@ -208,7 +212,7 @@ history = model.fit(
     x_train, 
     y_train, 
     batch_size=32, 
-    epochs=7, 
+    epochs=15, 
     validation_split=0.15,
     callbacks=[ cp_callback, tensorboard ]) 
 
@@ -218,12 +222,3 @@ y_pred = np.argmax(y_pred, axis = 1)
 
 score = metrics.classification_report(y_test, y_pred)
 print(score)
-
-'''
-COLOR
-X = (X-127.0)/127.0
-
-
-GRAY
-X = (X-127.0)/127.0
-'''
