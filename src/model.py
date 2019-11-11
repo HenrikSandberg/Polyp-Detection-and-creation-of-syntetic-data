@@ -7,6 +7,7 @@ from sklearn import svm
 #Data preprocessing
 import pickle
 import cv2
+import imutils
 import random
 import matplotlib.pyplot as plt
 
@@ -40,6 +41,34 @@ CATEGORIES = [
     'ulcerative-colitis'
 ]
 
+'''
+Looks trough the image for a green box, if found it will create a black box over
+that hids what ever is inside the box. This is a precorsen to make sure the model
+learns just to look inside the box for information.
+'''
+def remove_green_box(img_file, img_path, img):
+    out_file = img_file if USE_COLOR else cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+
+    hsv = cv2.cvtColor(img_file, cv2.COLOR_BGR2HSV)
+
+    lower_green = np.array([17,163,134])
+    upper_green = np.array([105, 240, 197])
+
+    mask = cv2.inRange (hsv, lower_green, upper_green)
+    green_content = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2]
+
+    if len(green_content) > 0:
+        green_area = max(green_content, key = cv2.contourArea)
+        (xg,yg,wg,hg) = cv2.boundingRect(green_area)
+
+        if hg*wg > 35000 and xg < 50 and yg > 200:
+            v1 = xg+wg if wg < 250 else 209+38
+            v2 = yg+hg if hg < 200 else 168+384
+            yg = yg if yg > 350 else 384
+            cv2.rectangle(out_file,(xg,yg),(v1, v2),(0,0,0), cv2.FILLED)
+
+    return out_file
+
 ''' 
 Genaerate trainingdata by moving in to the different directories, using the name on the directories as labels for the data. 
 The data from the images are together withe the labels added into an array. 
@@ -54,11 +83,13 @@ def create_training_data():
         for img in os.listdir(path):
             try:                
                 img_path = os.path.join(path,img)
-                img_file = cv2.imread(img_path) if USE_COLOR else cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+                img_file = cv2.imread(img_path) 
+                out_file = remove_green_box(img_file, img_path, img)
+                img_array = cv2.resize(out_file, (IMG_SIZE, IMG_SIZE))
+                training_data.append([img_array, class_num])    
 
-                img_array = cv2.resize(img_file, (IMG_SIZE, IMG_SIZE))
-                training_data.append([img_array, class_num])             
-            except Exception:
+            except Exception as e:
+                print(e)
                 pass
             
     random.shuffle(training_data)
@@ -97,9 +128,10 @@ def create_features_and_labels():
 
         X = np.array(X).reshape(-1, IMG_SIZE, IMG_SIZE, CHANNELS)        
         X = (X-127.0)/127.0
+        #X = X / 255.0
         
-        create_file('y', y)
-        create_file('X', X)
+        #create_file('y', y)
+        #create_file('X', X)
 
     #Splits and sets aside data for validation of the models performasce
     return (X,y)
@@ -166,7 +198,7 @@ try:
     model.load_weights(checkpoint_path)
 except Exception as e:
     print('Exception:' + str(e))
- 
+
 model.compile(
     loss='sparse_categorical_crossentropy',
     optimizer='adam',
@@ -188,35 +220,10 @@ score = metrics.classification_report(y_test, y_pred)
 print(score)
 
 '''
-Color
-              precision    recall  f1-score   support
+COLOR
+X = (X-127.0)/127.0
 
-           0       0.89      0.64      0.74        25
-           1       0.65      0.87      0.74        15
-           2       0.70      0.80      0.74        20
-           3       0.86      1.00      0.92        12
-           4       1.00      1.00      1.00        23
-           5       0.73      0.61      0.67        18
-           6       0.77      0.85      0.81        27
-           7       0.88      0.75      0.81        20
 
-    accuracy                           0.81       160
-   macro avg       0.81      0.81      0.80       160
-weighted avg       0.82      0.81      0.80       160
-
-Gray
-              precision    recall  f1-score   support
-
-           0       0.39      0.47      0.43        19
-           1       0.59      0.50      0.54        20
-           2       0.77      0.83      0.80        24
-           3       0.72      0.81      0.76        16
-           4       0.95      1.00      0.98        20
-           5       0.83      0.73      0.78        26
-           6       0.46      0.32      0.37        19
-           7       0.68      0.81      0.74        16
-
-    accuracy                           0.69       160
-   macro avg       0.67      0.68      0.68       160
-weighted avg       0.68      0.69      0.68       160
+GRAY
+X = (X-127.0)/127.0
 '''
