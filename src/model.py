@@ -212,7 +212,7 @@ history = model.fit(
     x_train, 
     y_train, 
     batch_size=32, 
-    epochs=15, 
+    epochs=7, 
     validation_split=0.15,
     callbacks=[ cp_callback, tensorboard ]) 
 
