@@ -4,6 +4,7 @@ import time
 from sklearn import metrics
 from sklearn import svm
 
+#To open tensorboard fun the following in terminal at project root directory
 #tensorboard --logdir='logs/fit/'
 
 #Data preprocessing
@@ -187,7 +188,11 @@ def create_test_data_for_syntetic():
 
 # Creates an pickle fil. This can directly be implemented into the model for quicker training
 def create_file(name, data):
-    pickle_out = open("loaded_data/"+name+"_"+str(IMG_SIZE)+"_"+COLOR_STATE+".pickle","wb")
+    directory = 'loaded_data/'
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+    pickle_out = open(directory+name+"_"+str(IMG_SIZE)+"_"+COLOR_STATE+".pickle","wb")
     pickle.dump(data, pickle_out)
     pickle_out.close()
 
@@ -272,13 +277,20 @@ def run_model():
     (x_train, y_train), (x_test, y_test) = split_into_train_and_test(features, labels)
     model = build_model()
 
+    log_dir="logs/fit/"
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+
     #Generate log to Tensorbord
-    log_dir="logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + NAME
+    log_dir = log_dir + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + NAME
     tensorboard = TensorBoard(log_dir=log_dir, histogram_freq=1)
 
     #Generate a trained model
-    checkpoint_path = "training_checkpoints_CNN/"+NAME+".h5"
-    checkpoint_dir = os.path.dirname(checkpoint_path)
+    checkpoint_path = "training_checkpoints_CNN/"
+    if not os.path.exists(checkpoint_path):
+        os.makedirs(checkpoint_path)
+
+    checkpoint_path = checkpoint_path+NAME+".h5"
 
     cp_callback = tf.keras.callbacks.ModelCheckpoint(
         filepath=checkpoint_path, 
@@ -311,9 +323,8 @@ def run_model():
 
     score = metrics.classification_report(y_test, y_pred)
     print(score)
+    plot_history(history)
     
-    signle_pred('esophagitis/esophagitis14.jpg')
-    signle_pred('dyed-resection-margins/dyed-resection-margins10.jpg')
 
 #PipeLine for synthetic data
 def run_synthetic_model():
@@ -323,13 +334,19 @@ def run_synthetic_model():
     model = build_model()
 
     #Generate log to Tensorbord
-    log_dir="logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + NAME + "_sythetic"
+    log_dir="logs/fit/"
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+    log_dir = log_dir+ datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + NAME + "_sythetic"
     tensorboard = TensorBoard(log_dir=log_dir, histogram_freq=1)
 
 
     #Generate a trained model
-    checkpoint_path = "training_checkpoints_CNN/"+NAME+"_sythetic.h5"
-    checkpoint_dir = os.path.dirname(checkpoint_path)
+    checkpoint_path = "training_checkpoints_CNN/"
+    if not os.path.exists(checkpoint_path):
+        os.makedirs(checkpoint_path)
+
+    checkpoint_path = checkpoint_path+ NAME + "_sythetic.h5"
 
     cp_callback = tf.keras.callbacks.ModelCheckpoint(
         filepath=checkpoint_path, 
@@ -362,6 +379,8 @@ def run_synthetic_model():
 
     score = metrics.classification_report(y_test, y_pred)
     print(score)
+
+    plot_history(history)
 
     signle_pred_syntetic('esophagitis/esophagitis14.jpg')
     signle_pred_syntetic('dyed-resection-margins/dyed-resection-margins10.jpg')
@@ -409,7 +428,6 @@ def signle_pred_syntetic(img):
 
 
 #Selects function to run
-
 if WITH_SYNTHETIC:
     run_synthetic_model()
 else:
