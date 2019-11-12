@@ -26,6 +26,7 @@ from keras.models import Sequential
 from keras.layers import Conv2D, GlobalAvgPool2D, MaxPool2D, Flatten, Dense
 
 #GLOBALE VALUES
+EPOCHS = 7
 IMG_SIZE = 64
 USE_COLOR = True
 WITH_SYNTHETIC = False
@@ -313,7 +314,7 @@ def run_model():
         x_train, 
         y_train, 
         batch_size=32, 
-        epochs=7, 
+        epochs=EPOCHS, 
         validation_split=0.15,
         callbacks=[ cp_callback, tensorboard ]) 
 
@@ -369,7 +370,7 @@ def run_synthetic_model():
         x_train, 
         y_train, 
         batch_size=32, 
-        epochs=1, 
+        epochs=EPOCHS, 
         validation_split=0.15,
         callbacks=[ cp_callback, tensorboard ]) 
 
@@ -402,8 +403,7 @@ def signle_pred(img):
     
     y_pred = model.predict(X)
     y_pred = np.argmax(y_pred, axis = 1)
-    for item in y_pred:
-        print(SYTHETIC_CATEGORIES[item])
+    print(SYTHETIC_CATEGORIES[y_pred[0]])
 
 def signle_pred_syntetic(img):
     model = build_model()
@@ -422,10 +422,7 @@ def signle_pred_syntetic(img):
     
     y_pred = model.predict(X)
     y_pred = np.argmax(y_pred, axis = 1)
-    for item in y_pred:
-        print(SYTHETIC_CATEGORIES[item])
-
-
+    print(SYTHETIC_CATEGORIES[y_pred[0]])
 
 #Selects function to run
 if WITH_SYNTHETIC:

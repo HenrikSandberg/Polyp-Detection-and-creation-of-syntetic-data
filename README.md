@@ -1,16 +1,7 @@
 # code-for-ml-exam
- This is my code for ML exam.
+The files contained are the ones required for delivering the assignment. If you wish to run the models, please place the data directory inside the root directory for the py files. 
 
-- A report describing the process (details see below) 
-- A Jupyter notebook or python file containing the whole analysis (executable).
-- The model that was obtained during the training process including a notebook or python program to test the model on the test data.
-## Assignment 
-Delivery of a short document describing the complete project and how you worked with it. Length should be between 4-10 pages font size 12. Format: PDF. The report should contain the following parts:
-o Methods and process: Describing the whole process and which methods you decided to use and why.
-o Evaluation of the results and discussion: In this part you should discuss the results and what they mean in a critical way.
-o Conclusion: Conclude your work and major lessons learned.
-o Citations: It is important that you cite every source that you used for the report
-(articles, code, etc.)
+All synthetic data and the trained GAN models was too lagre to be added to Wise flow. They are however accessible trough this url: 
+[https://drive.google.com/drive/folders/1MtjBL4f\_cl9he85BZq6RiXVoNxEfz\_F7?usp=sharing][1]
 
-# My prosess
-This exam contains my code for how I decided to salve the problem given as a 
+[1]:	https://drive.google.com/drive/folders/1MtjBL4f_cl9he85BZq6RiXVoNxEfz_F7?usp=sharing
