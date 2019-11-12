@@ -195,7 +195,9 @@ def create_syntetic_data(checkpoint, model):
             predictions = model(input, training=False)
 
             for i in range(predictions.shape[0]):
-                plt.imshow((predictions[i, :, :, 0] + 127.5) * 127.5)
+                #plt.imshow(predictions[i, :, :, -1] ) # 0]+ 127.5) * 127.5
+                #img = cv2.cvtColor(, cv2.COLOR_BGR2RGB)
+                plt.imshow(predictions[i, :, :, -1])
                 plt.axis('off')
                 plt.savefig('syntetic/{}/{}_{}_{}.png'.format(SELECTED_CATEGORY, SELECTED_CATEGORY, y, i))
                 plt.close()
@@ -207,31 +209,31 @@ This loop is the beginning of the running code. It goes through category by cate
 trains the algorithems and then generat syntetic data. Then repete the prosess for the
 next categorie. 
 '''
-for i in range(len(CATEGORIES)):
-    SELECTED_CATEGORY = CATEGORIES[i]
-    print("Now traingin for category {}".format(SELECTED_CATEGORY))
+#for i in range(len(CATEGORIES)):
+#    SELECTED_CATEGORY = CATEGORIES[i]
+print("Now traingin for category {}".format(SELECTED_CATEGORY))
 
-    (train_images, train_labels) = create_training_data(i)
-    train_dataset = tf.data.Dataset.from_tensor_slices(train_images).shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
+(train_images, train_labels) = create_training_data(0)
+train_dataset = tf.data.Dataset.from_tensor_slices(train_images).shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
 
-    generator = build_generator_model()
-    discriminator = build_discriminator_model()
-    generator_optimizer = tf.keras.optimizers.Adam(1e-4)
-    discriminator_optimizer = tf.keras.optimizers.Adam(1e-4)
+generator = build_generator_model()
+discriminator = build_discriminator_model()
+generator_optimizer = tf.keras.optimizers.Adam(1e-4)
+discriminator_optimizer = tf.keras.optimizers.Adam(1e-4)
 
-    checkpoint_dir = './training_checkpoints_GAN/{}/'.format(SELECTED_CATEGORY)
-    checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
-    checkpoint = tf.train.Checkpoint(
-        generator_optimizer=generator_optimizer, 
-        discriminator_optimizer=discriminator_optimizer, 
-        generator=generator, 
-        discriminator=discriminator)
+checkpoint_dir = './training_checkpoints_GAN/{}/'.format(SELECTED_CATEGORY)
+checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
+checkpoint = tf.train.Checkpoint(
+    generator_optimizer=generator_optimizer, 
+    discriminator_optimizer=discriminator_optimizer, 
+    generator=generator, 
+    discriminator=discriminator)
 
-    try:
-        checkpoint.restore(tf.train.latest_checkpoint(checkpoint_dir))
-    except Exception as e:
-        print(e)
-        
-    train(train_dataset, EPOCHS)
-    print("Now generating images")
-    create_syntetic_data(checkpoint, generator)
+try:
+    checkpoint.restore(tf.train.latest_checkpoint(checkpoint_dir))
+except Exception as e:
+    print(e)
+    
+#train(train_dataset, EPOCHS)
+print("Now generating images")
+create_syntetic_data(checkpoint, generator)

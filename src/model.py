@@ -27,8 +27,9 @@ from keras.layers import Conv2D, GlobalAvgPool2D, MaxPool2D, Flatten, Dense
 #GLOBALE VALUES
 IMG_SIZE = 64
 USE_COLOR = True
+WITH_SYNTHETIC = False
 CHANNELS = 3 if USE_COLOR else 1
-COLOR_STATE = "color" if USE_COLOR else "gray"
+COLOR_STATE = 'color' if USE_COLOR else 'gray'
 
 NAME = "model_{}_{}".format(IMG_SIZE, COLOR_STATE)
 
@@ -41,6 +42,13 @@ CATEGORIES = [
     'normal-z-line',
     'polyps', 
     'ulcerative-colitis'
+]
+
+SYTHETIC_CATEGORIES = [
+    'dyed-lifted-polyps', 
+    'dyed-resection-margins', 
+    'esophagitis', 
+    'normal-cecum'
 ]
 
 '''
@@ -97,6 +105,85 @@ def create_training_data():
             
     random.shuffle(training_data)
     return training_data
+
+
+def create_syntetic_training_data(): 
+    (X, y) = ([], [])
+    training_data = []   
+
+    try:
+        pickle_in = open("loaded_data/synthetic_X_"+str(IMG_SIZE)+"_"+str(COLOR_STATE)+".pickle","rb")
+        X = pickle.load(pickle_in)
+
+        pickle_in = open("loaded_data/synthetic_y_"+str(IMG_SIZE)+"_"+str(COLOR_STATE)+".pickle","rb")
+        y = pickle.load(pickle_in)
+
+    except Exception as e:
+        print('Error: '+ str(e))
+            
+        for category in SYTHETIC_CATEGORIES:
+            path = os.path.join('syntetic/', category)
+            class_num = SYTHETIC_CATEGORIES.index(category)
+
+            print('Building training data for ' + str(category))
+            for img in os.listdir(path):
+                try:                
+                    img_path = os.path.join(path,img)
+                    img_file = cv2.imread(img_path) if USE_COLOR else cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+                    loc_y = 60
+                    loc_x = 150
+                    h=360
+                    w=360
+                    crop = img_file[loc_y:loc_y+h, loc_x:loc_x+w]
+                    #cv2.imshow('Image', crop)
+                    #cv2.waitKey(0) 
+                    img_array = cv2.resize(crop, (IMG_SIZE, IMG_SIZE))
+                    training_data.append([img_array, class_num])    
+
+                except Exception as e:
+                    print(e)
+                
+        random.shuffle(training_data)
+
+        for feature, label in training_data:
+            X.append(feature)
+            y.append(label)
+
+        X = np.array(X).reshape(-1, IMG_SIZE, IMG_SIZE, CHANNELS)        
+        
+        create_file('synthetic_y', y)
+        create_file('synthetic_X', X)
+    return (X,y)
+
+def create_test_data_for_syntetic(): 
+    (X, y) = ([], [])
+    training_data = []   
+            
+    for category in SYTHETIC_CATEGORIES:
+        path = os.path.join('syntetic/', category)
+        class_num = SYTHETIC_CATEGORIES.index(category)
+
+        print('Building training data for ' + str(category))
+        for img in os.listdir(path):
+            try:                
+                img_path = os.path.join(path,img)
+                out_file = cv2.imread(img_path) if USE_COLOR else cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+                img_array = cv2.resize(out_file, (IMG_SIZE, IMG_SIZE))
+                training_data.append([img_array, class_num])    
+
+            except Exception as e:
+                print(e)
+            
+    random.shuffle(training_data)
+
+    for feature, label in training_data:
+        X.append(feature)
+        y.append(label)
+
+    X = np.array(X).reshape(-1, IMG_SIZE, IMG_SIZE, CHANNELS)        
+    X = (X-127.0)/127.0
+    
+    return (X,y)
 
 # Creates an pickle fil. This can directly be implemented into the model for quicker training
 def create_file(name, data):
@@ -178,47 +265,153 @@ def plot_history(history):
     plt.legend(loc='lower right')
     plt.show()
 
-#Creating model, data and splits training data from validation data
-(features, labels) = create_features_and_labels()
-(x_train, y_train), (x_test, y_test) = split_into_train_and_test(features, labels)
-model = build_model()
+#PipeLine for non-synthetic data
+def run_model():
+    #Creating model, data and splits training data from validation data
+    (features, labels) = create_features_and_labels()
+    (x_train, y_train), (x_test, y_test) = split_into_train_and_test(features, labels)
+    model = build_model()
 
-#Generate log to Tensorbord
-log_dir="logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + NAME
-tensorboard = TensorBoard(log_dir=log_dir, histogram_freq=1)
+    #Generate log to Tensorbord
+    log_dir="logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + NAME
+    tensorboard = TensorBoard(log_dir=log_dir, histogram_freq=1)
 
-#Generate a trained model
-checkpoint_path = "training_checkpoints_CNN/"+NAME+".h5"
-checkpoint_dir = os.path.dirname(checkpoint_path)
+    #Generate a trained model
+    checkpoint_path = "training_checkpoints_CNN/"+NAME+".h5"
+    checkpoint_dir = os.path.dirname(checkpoint_path)
 
-cp_callback = tf.keras.callbacks.ModelCheckpoint(
-    filepath=checkpoint_path, 
-    save_weights_only=True, 
-    verbose=1, 
-    monitor='val_loss')
+    cp_callback = tf.keras.callbacks.ModelCheckpoint(
+        filepath=checkpoint_path, 
+        save_weights_only=True, 
+        verbose=1, 
+        monitor='val_loss')
 
-#Load the pretraind model if it exist
-try:
-    model.load_weights(checkpoint_path)
-except Exception as e:
-    print('Exception:' + str(e))
+    #Load the pretraind model if it exist
+    try:
+        model.load_weights(checkpoint_path)
+    except Exception as e:
+        print('Exception:' + str(e))
 
-model.compile(
-    loss='sparse_categorical_crossentropy',
-    optimizer='adam',
-    metrics=['accuracy'])
+    model.compile(
+        loss='sparse_categorical_crossentropy',
+        optimizer='adam',
+        metrics=['accuracy'])
 
-history = model.fit(
-    x_train, 
-    y_train, 
-    batch_size=32, 
-    epochs=7, 
-    validation_split=0.15,
-    callbacks=[ cp_callback, tensorboard ]) 
+    history = model.fit(
+        x_train, 
+        y_train, 
+        batch_size=32, 
+        epochs=7, 
+        validation_split=0.15,
+        callbacks=[ cp_callback, tensorboard ]) 
 
-#Evaluate the models performance
-y_pred = model.predict(x_test)
-y_pred = np.argmax(y_pred, axis = 1)
+    #Evaluate the models performance
+    y_pred = model.predict(x_test)
+    y_pred = np.argmax(y_pred, axis = 1)
 
-score = metrics.classification_report(y_test, y_pred)
-print(score)
+    score = metrics.classification_report(y_test, y_pred)
+    print(score)
+    
+    signle_pred('esophagitis/esophagitis14.jpg')
+    signle_pred('dyed-resection-margins/dyed-resection-margins10.jpg')
+
+#PipeLine for synthetic data
+def run_synthetic_model():
+    (x_train, y_train) = create_syntetic_training_data()
+    (x_test, y_test) = create_test_data_for_syntetic()
+
+    model = build_model()
+
+    #Generate log to Tensorbord
+    log_dir="logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + NAME + "_sythetic"
+    tensorboard = TensorBoard(log_dir=log_dir, histogram_freq=1)
+
+
+    #Generate a trained model
+    checkpoint_path = "training_checkpoints_CNN/"+NAME+"_sythetic.h5"
+    checkpoint_dir = os.path.dirname(checkpoint_path)
+
+    cp_callback = tf.keras.callbacks.ModelCheckpoint(
+        filepath=checkpoint_path, 
+        save_weights_only=True, 
+        verbose=1, 
+        monitor='val_loss')
+
+    #Load the pretraind model if it exist
+    try:
+        model.load_weights(checkpoint_path)
+    except Exception as e:
+        print('Exception:' + str(e))
+
+    model.compile(
+        loss='sparse_categorical_crossentropy',
+        optimizer='adam',
+        metrics=['accuracy'])
+
+    history = model.fit(
+        x_train, 
+        y_train, 
+        batch_size=32, 
+        epochs=1, 
+        validation_split=0.15,
+        callbacks=[ cp_callback, tensorboard ]) 
+
+    #Evaluate the models performance
+    y_pred = model.predict(x_test)
+    y_pred = np.argmax(y_pred, axis = 1)
+
+    score = metrics.classification_report(y_test, y_pred)
+    print(score)
+
+    signle_pred_syntetic('esophagitis/esophagitis14.jpg')
+    signle_pred_syntetic('dyed-resection-margins/dyed-resection-margins10.jpg')
+
+def signle_pred(img):
+    model = build_model()
+    checkpoint_path = "training_checkpoints_CNN/"+NAME+".h5"
+
+    try:
+        model.load_weights(checkpoint_path)
+    except Exception as e:
+        print('Exception:' + str(e))
+
+    img_path = os.path.join('data/', img)
+    img_file = cv2.imread(img_path) 
+    img_array = cv2.resize(img_file, (IMG_SIZE, IMG_SIZE))
+    X = np.array(img_array).reshape(-1, IMG_SIZE, IMG_SIZE, CHANNELS)        
+    X = (X-127.0)/127.0
+    
+    y_pred = model.predict(X)
+    y_pred = np.argmax(y_pred, axis = 1)
+    for item in y_pred:
+        print(SYTHETIC_CATEGORIES[item])
+
+def signle_pred_syntetic(img):
+    model = build_model()
+    checkpoint_path = "training_checkpoints_CNN/"+NAME+"_sythetic.h5"
+
+    try:
+        model.load_weights(checkpoint_path)
+    except Exception as e:
+        print('Exception:' + str(e))
+
+    img_path = os.path.join('data/', img)
+    img_file = cv2.imread(img_path) 
+    img_array = cv2.resize(img_file, (IMG_SIZE, IMG_SIZE))
+    X = np.array(img_array).reshape(-1, IMG_SIZE, IMG_SIZE, CHANNELS)        
+    X = (X-127.0)/127.0
+    
+    y_pred = model.predict(X)
+    y_pred = np.argmax(y_pred, axis = 1)
+    for item in y_pred:
+        print(SYTHETIC_CATEGORIES[item])
+
+
+
+#Selects function to run
+
+if WITH_SYNTHETIC:
+    run_synthetic_model()
+else:
+    run_model()
+
